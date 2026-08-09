@@ -1,6 +1,7 @@
 # AutoAct
 
-Android アクセシビリティサービス経由でシナリオ実行する自動操作フレームワーク。
+Android を自動操作するためのフレームワーク。AccessibilityService 経由で任意アプリの UI 操作
+(タップ/スワイプ/文字入力/スクロール 等) をシナリオとして記述・実行できる。
 TCP JSON API と CLI (`aa`)、Gboard 日本語フリック入力補助 (`flick/`) を同梱。
 
 ## 使い方
