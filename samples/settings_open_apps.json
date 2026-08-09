@@ -1,0 +1,14 @@
+{
+  "name": "settings-open-apps",
+  "targetPackage": "com.android.settings",
+  "defaultTimeoutMs": 8000,
+  "maxDurationMs": 60000,
+  "steps": [
+    {"op": "dumpUi",  "tag": "start"},
+    {"op": "waitFor", "by": "text", "value": "アプリ", "timeoutMs": 5000},
+    {"op": "click",   "by": "text", "value": "アプリ"},
+    {"op": "sleep",   "ms": 800},
+    {"op": "dumpUi",  "tag": "after-apps"},
+    {"op": "back"}
+  ]
+}

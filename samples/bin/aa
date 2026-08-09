@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# aa - AutoAct CLI over TCP loopback (default 127.0.0.1:8765).
+# Override endpoint with AUTOACT_HOST / AUTOACT_PORT env vars.
+#
+# Usage:
+#   aa <cmd> [--key value ...]
+#   aa <cmd> --json '{"arbitrary":"json"}'
+#   aa raw   '{"cmd":"tap","args":{"x":500,"y":500}}'
+#
+# Examples:
+#   aa health
+#   aa screen
+#   aa top
+#   aa tap x=500 y=800
+#   aa swipe x1=500 y1=1500 x2=500 y2=500 durMs=400
+#   aa click by=text value=設定
+#   aa find by=text value=設定 limit=5
+#   aa key name=back
+#   aa dpad dir=down
+#   aa dumpUi tag=cli
+#   aa screenshot tag=cli
+#   aa run name=self_smoke
+#   aa run_sync name=self_smoke
+#   aa stop
+#   aa exec --json "$(cat samples/self_smoke.json | jq '{scenario:.}')"
+#   aa install   path=/sdcard/Download/foo.apk
+#   aa uninstall package=com.example.foo
+#   aa install_status
+#   aa packages  filter=com.example
+#   aa launch    package=com.example.foo
+#
+# Depends on: bash /dev/tcp support (built-in in bash 2.04+), python3 (for JSON escape).
+
+set -euo pipefail
+
+HOST="${AUTOACT_HOST:-127.0.0.1}"
+PORT="${AUTOACT_PORT:-8765}"
+
+die() { echo "aa: $*" >&2; exit 1; }
+
+# --------- build request JSON ---------
+cmd="${1:-}"
+[ -z "$cmd" ] && die "usage: aa <cmd> [k=v ...] | aa <cmd> --json '{...}' | aa raw '<json>'"
+shift || true
+
+if [ "$cmd" = "raw" ]; then
+    payload="${1:-}"
+    [ -z "$payload" ] && die "raw: missing JSON"
+elif [ "${1:-}" = "--json" ]; then
+    args_json="${2:-{\}}"
+    payload="{\"cmd\":\"$cmd\",\"args\":$args_json}"
+else
+    # k=v pairs → JSON args. Number-looking → number, true/false → bool, else string.
+    args="{}"
+    for kv in "$@"; do
+        case "$kv" in
+            *=*) k="${kv%%=*}"; v="${kv#*=}" ;;
+            *)   die "bad arg (need k=v): $kv" ;;
+        esac
+        case "$v" in
+            ''|*[!0-9-]*) json_v=$(printf '%s' "$v" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))') ;;
+            *)            json_v="$v" ;;
+        esac
+        [ "$v" = "true" ]  && json_v=true
+        [ "$v" = "false" ] && json_v=false
+        # append to args using python for safe JSON merge
+        args=$(python3 -c '
+import sys,json
+d=json.loads(sys.argv[1]); d[sys.argv[2]]=json.loads(sys.argv[3]); print(json.dumps(d,ensure_ascii=False))
+' "$args" "$k" "$json_v")
+    done
+    payload="{\"cmd\":\"$cmd\",\"args\":$args}"
+fi
+
+# --------- send + receive ---------
+# Use bash's built-in /dev/tcp — no external deps required.
+# Strip embedded newlines: the protocol is NDJSON (1 line = 1 request).
+payload=$(printf '%s' "$payload" | tr -d '\n\r')
+exec 3<>/dev/tcp/"$HOST"/"$PORT"
+printf '%s\n' "$payload" >&3
+IFS= read -r line <&3 || true
+exec 3<&-
+printf '%s\n' "$line"

@@ -1,0 +1,12 @@
+{
+  "name": "self-smoke",
+  "targetPackage": "com.example.autoact",
+  "defaultTimeoutMs": 5000,
+  "maxDurationMs": 30000,
+  "steps": [
+    {"op": "dumpUi", "tag": "before"},
+    {"op": "sleep",  "ms": 500},
+    {"op": "assert", "by": "text", "value": "RUN"},
+    {"op": "dumpUi", "tag": "after"}
+  ]
+}

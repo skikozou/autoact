@@ -1,0 +1,36 @@
+# ==== build artifacts ====
+build/
+*.class
+*.dex
+*.apk
+*.aab
+
+# ==== env-specific / private (must be provided by each dev) ====
+# Android SDK header jar (symlink to $ANDROID_HOME/platforms/android-*/android.jar)
+android.jar
+# Debug signing key — generate your own (see README)
+debug.keystore
+# Termux-specific build script — each dev writes their own for their env
+build.sh
+
+# ==== python caches ====
+__pycache__/
+*.pyc
+*.pyo
+
+# ==== flick: device-specific probe outputs (regenerate with probe*.py) ====
+# All assume 1080×2392 portrait + Gboard 日本語12キー.
+flick/keymap.json
+flick/alpha_qwerty.json
+flick/alpha_flick_up.json
+flick/modes_dump.json
+flick/symbol_A.json
+
+# ==== editor / OS junk ====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.iml
