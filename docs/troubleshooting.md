@@ -35,7 +35,7 @@
 ## `install` が承認 UI を出さない
 
 - BAL 制約 (Android 10+): `BroadcastReceiver.startActivity` が画面前面化されない
-- 現状の回避策: **手動でインストール承認** → 修正案は [install.md](install.md) 末尾
+- 回避策: **手動でインストール承認** → 詳細は [install.md](install.md) 末尾
 
 ## タブ・ドロワーが出ない
 

@@ -73,7 +73,7 @@ JSON シナリオを非同期実行。すでに走ってれば拒否。
 ```
 
 ### `run_sync`
-`run` の完了待ち版。ScenarioRunner の `CountDownLatch` で即座に返る (旧: 200ms poll 粒度)。
+`run` の完了待ち版。ScenarioRunner の `CountDownLatch` で待機する。
 
 ### `exec`
 インライン JSON シナリオを渡す。sync 実行。

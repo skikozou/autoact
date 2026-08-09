@@ -59,7 +59,7 @@ Android 10+ の背景 Activity 起動制限。`BroadcastReceiver` から `startA
 - a11y サービス (フォアグラウンド) 側から起動する
 - ユーザ介入時のみ `startActivity` を許容する
 
-現在の `InstallStatusReceiver` はレシーバから直接 startActivity しているので、フォアグラウンドに Termux 等がいると発火しないことがある。
+`InstallStatusReceiver` はレシーバから直接 startActivity しているので、フォアグラウンドに Termux 等がいると発火しないことがある。
 
 ### 承認 UI のロケール差
 「インストール」「Install」「安装」等。汎用シナリオでは `by=textContains` かボタン位置座標で対応。

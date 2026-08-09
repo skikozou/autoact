@@ -16,7 +16,7 @@ Android AccessibilityService ベースの GUI 自動化ツール。TCP 経由で
 - [selectors.md](selectors.md) — ノード検索の `by` 戦略 (text/id/desc/focused ...)
 
 ### IPC / 通信
-- [ipc.md](ipc.md) — TCP loopback + NDJSON プロトコル、abstract socket が使えなかった理由
+- [ipc.md](ipc.md) — TCP loopback + NDJSON プロトコル、BroadcastReceiver 補助経路
 
 ### アプリインストール
 - [install.md](install.md) — PackageInstaller フロー、自己書き換え、権限、BAL 制約
