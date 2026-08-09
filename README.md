@@ -55,4 +55,4 @@ gitignore で除外している。導入手順は [`docs/setup.md`](docs/setup.m
 
 ## ライセンス
 
-未定。追って明記します。
+MIT LICENSE
