@@ -21,7 +21,7 @@
 
 - 対象が EditText でない: `by=focused` で入力欄を明示 (先に click しておく)
 - IME が閉じている: 先に `aa click by=focused` で開く
-- ノード無しで `by=focused` を使ったのに value=null で弾かれる: 最新版は許容 (`ActionExecutor.waitFor` 参照)
+- ノード無しで `by=focused` を使ったのに value=null で弾かれる: 最新版は許容 (`ActionExecutor.waitForStep` の WaitTask 経由)
 
 ## `by=id` が空振り
 
@@ -67,6 +67,10 @@
 foreground が Termux (等の呼び出し元) になっている。`aa launch package=対象` で切り替え直後に dump する。または dump 直前の `aa top` で foreground 確認。
 
 ## d8 で NPE
-`build.sh` 実行時に d8 が NPE → 匿名/private inner クラス or ジェネリック interface 実装が入ってないか確認 → [build.md](build.md)
+`build.sh` 実行時に d8 が
+`NullPointerException: Cannot invoke "String.length()" because "<parameter1>" is null`
+で失敗する場合、匿名/private inner クラス or ジェネリック interface 実装が入っていないか確認
+(Termux の d8 3.3 が javac 21 の `InnerClasses` / `Signature` 属性をパースできない) →
+[build.md](build.md)
 
 参考: [a11y-quirks.md](a11y-quirks.md), [install.md](install.md)

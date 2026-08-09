@@ -19,6 +19,13 @@ import java.util.concurrent.TimeUnit;
 
 public class ActionExecutor {
 
+    // ---- step default timings / spans ----
+    private static final long DEFAULT_SLEEP_MS         = 500L;  // sleep step: ms when unspecified
+    private static final long DRAG_DISPATCH_SLACK_MS   = 200L;  // extra timeout margin for drag dispatch
+    private static final int  DEFAULT_PINCH_START_PX   = 800;   // pinch startSpan default (px)
+    private static final int  DEFAULT_PINCH_END_PX     = 200;   // pinch endSpan default (px)
+    private static final long DEFAULT_POLL_INTERVAL_MS = 50L;   // waitForGone poll interval when unspecified
+
     // Returns true on success, false on failure.
     public static boolean execute(AutomationService svc, Step st) throws InterruptedException {
         if (st == null || st.op == null) {
@@ -29,7 +36,7 @@ public class ActionExecutor {
 
         // ---- simple / fast ----
         if (Step.OP_SLEEP.equals(op)) {
-            Thread.sleep(st.ms > 0 ? st.ms : 500L);
+            Thread.sleep(st.ms > 0 ? st.ms : DEFAULT_SLEEP_MS);
             return true;
         }
         if (Step.OP_DUMP_UI.equals(op)) {
@@ -60,7 +67,7 @@ public class ActionExecutor {
         if (Step.OP_DRAG.equals(op)) {
             return dispatch(svc,
                     GestureBuilder.drag(st.x1, st.y1, st.x2, st.y2, st.holdMs, st.durMs),
-                    st.holdMs + st.durMs + 200L);
+                    st.holdMs + st.durMs + DRAG_DISPATCH_SLACK_MS);
         }
         if (Step.OP_CURVE_SWIPE.equals(op)) {
             int cx = st.cx >= 0 ? st.cx : (st.x1 + st.x2) / 2;
@@ -72,8 +79,8 @@ public class ActionExecutor {
         if (Step.OP_PINCH.equals(op)) {
             int cx = st.cx >= 0 ? st.cx : screenCenterX(svc);
             int cy = st.cy >= 0 ? st.cy : screenCenterY(svc);
-            int ss = st.startSpan > 0 ? st.startSpan : 800;
-            int es = st.endSpan   > 0 ? st.endSpan   : 200;
+            int ss = st.startSpan > 0 ? st.startSpan : DEFAULT_PINCH_START_PX;
+            int es = st.endSpan   > 0 ? st.endSpan   : DEFAULT_PINCH_END_PX;
             return dispatch(svc, GestureBuilder.pinch(cx, cy, ss, es, st.durMs), st.durMs);
         }
         if (Step.OP_MULTI_SWIPE.equals(op)) {
@@ -212,23 +219,24 @@ public class ActionExecutor {
         }
 
         if (Step.OP_LOCK_SCREEN.equals(op))
-            return Build.VERSION.SDK_INT >= 28
-                    ? AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN : Integer.MIN_VALUE;
+            return sdkOrUnavail(28, AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN);
         if (Step.OP_SCREENSHOT_SYS.equals(op))
-            return Build.VERSION.SDK_INT >= 28
-                    ? AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT : Integer.MIN_VALUE;
+            return sdkOrUnavail(28, AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT);
         if (Step.OP_A11Y_SHORTCUT.equals(op))
-            return Build.VERSION.SDK_INT >= 28
-                    ? AccessibilityService.GLOBAL_ACTION_ACCESSIBILITY_SHORTCUT : Integer.MIN_VALUE;
+            return sdkOrUnavail(28, AccessibilityService.GLOBAL_ACTION_ACCESSIBILITY_SHORTCUT);
         if (Step.OP_A11Y_BUTTON.equals(op))
-            return Build.VERSION.SDK_INT >= 28
-                    ? AccessibilityService.GLOBAL_ACTION_ACCESSIBILITY_BUTTON : Integer.MIN_VALUE;
+            return sdkOrUnavail(28, AccessibilityService.GLOBAL_ACTION_ACCESSIBILITY_BUTTON);
         if (Step.OP_ALL_APPS.equals(op))
-            return Build.VERSION.SDK_INT >= 33
-                    ? AccessibilityService.GLOBAL_ACTION_ACCESSIBILITY_ALL_APPS : Integer.MIN_VALUE;
+            return sdkOrUnavail(33, AccessibilityService.GLOBAL_ACTION_ACCESSIBILITY_ALL_APPS);
         if (Step.OP_DPAD.equals(op))
             return Build.VERSION.SDK_INT >= 34 ? dpadId(st.dpad) : Integer.MIN_VALUE;
         return null;
+    }
+
+    // Returns `value` if the runtime SDK is at least `min`, else the
+    // "known op but unavailable" sentinel used by globalActionId's caller.
+    private static Integer sdkOrUnavail(int min, int value) {
+        return Build.VERSION.SDK_INT >= min ? value : Integer.MIN_VALUE;
     }
 
     private static int dpadId(String dir) {
@@ -244,7 +252,7 @@ public class ActionExecutor {
     // ---- generic node action helper: locates by st.by/st.value then performs id.
     private static boolean nodeAction(AutomationService svc, Step st,
                                       int actionId, Bundle args) throws InterruptedException {
-        AccessibilityNodeInfo n = waitFor(svc, st.by, st.value, st.timeoutMs);
+        AccessibilityNodeInfo n = waitForStep(svc, st);
         if (n == null) return false;
         boolean ok;
         try {
@@ -257,7 +265,7 @@ public class ActionExecutor {
 
     private static boolean clickLike(AutomationService svc, Step st, int action)
             throws InterruptedException {
-        AccessibilityNodeInfo n = waitFor(svc, st.by, st.value, st.timeoutMs);
+        AccessibilityNodeInfo n = waitForStep(svc, st);
         if (n == null) return false;
         AccessibilityNodeInfo target = n;
         if (!n.isClickable() && action == AccessibilityNodeInfo.ACTION_CLICK) {
@@ -270,26 +278,16 @@ public class ActionExecutor {
         return ok;
     }
 
-    public static AccessibilityNodeInfo waitFor(AutomationService svc,
-                                                String by, String value,
-                                                long timeoutMs)
-            throws InterruptedException {
-        if (by == null) return null;
-        if (value == null && !Step.BY_FOCUSED.equals(by)) return null;
-        long deadline = System.currentTimeMillis() + Math.max(0L, timeoutMs);
-        while (true) {
-            AccessibilityNodeInfo n = NodeFinder.find(svc, by, value);
-            if (n != null) return n;
-            if (System.currentTimeMillis() >= deadline) return null;
-            Thread.sleep(200L);
-        }
-    }
-
     /**
-     * Spec-aware wait used by OP_WAIT_FOR / OP_WAIT_CLICK step ops and by
-     * top-level cmd handlers. Honors st.mode (event|poll), st.intervalMs,
-     * st.ancestorId, st.region, st.limit, st.visibleOnly, st.clickableOnly.
-     * Defaults to event mode.
+     * Sole wait path. Used by OP_WAIT_FOR / OP_WAIT_CLICK and by nodeAction /
+     * clickLike (backing click, setText, longClick, focus, scroll, imeEnter,
+     * copy/paste, expand/collapse, showOnScreen, setSelection, setProgress, ...).
+     *
+     * Honors all FindSpec fields on Step: by/value, ancestorId, region,
+     * visibleOnly, clickableOnly, limit. Mode defaults to "event" (CPU 0,
+     * woken by AccessibilityEvent); pass mode="poll" for the rare UI that
+     * doesn't emit events. timeoutMs<=0 means "single sync check, no wait"
+     * (WaitTask still performs the initial sync find before returning).
      */
     public static AccessibilityNodeInfo waitForStep(AutomationService svc, Step st)
             throws InterruptedException {
@@ -302,9 +300,10 @@ public class ActionExecutor {
         spec.region = st.region;
         spec.visibleOnly = st.visibleOnly;
         spec.clickableOnly = st.clickableOnly;
-        spec.limit = st.limit <= 0 ? 1 : st.limit;
-        long timeout = st.timeoutMs > 0 ? st.timeoutMs : 5000L;
-        long interval = st.intervalMs > 0 ? st.intervalMs : 50L;
+        // waitFor is first-appearance semantics; walking further wastes work.
+        spec.limit = 1;
+        long timeout = Math.max(0L, st.timeoutMs);
+        long interval = st.intervalMs > 0 ? st.intervalMs : DEFAULT_POLL_INTERVAL_MS;
         String mode = st.mode == null ? "event" : st.mode;
         WaitTask w = new WaitTask(svc, spec, timeout, interval, mode);
         return w.await();

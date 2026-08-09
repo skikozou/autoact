@@ -114,7 +114,7 @@ public class Step {
     public String mode;            // wait: "event" | "poll" (default: event)
     public boolean visibleOnly;    // find/wait
     public boolean clickableOnly;  // find/wait
-    public int limit = 1;          // find early-return count (walk stops once reached)
+    public int limit = FindSpec.DEFAULT_LIMIT; // find early-return count (walk stops once reached)
 
     @Override
     public String toString() {

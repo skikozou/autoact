@@ -38,7 +38,14 @@ Linux 拡張の abstract namespace (`\0`-prefixed sun_path) を最初試した�
 
 抜け道 (root, LSPosed 等) はあるが root 不要な作りにしたいので TCP に倒した。
 
-参考メモリ: `project_android_abstract_socket.md`
+### 他の IPC 手段を採らなかった理由
+
+- **Filesystem Unix socket**: 相互に書ける場所が事実上ない (`/sdcard/` は socket 作成不可、
+  `/data/data/<pkg>/` は自 UID からしか読めない)
+- **Content Provider**: bash から叩ける薄いクライアントがなく重い
+- **abstract Unix socket**: 上記の通り cross-app connect が SELinux で塞がれる (同一 UID 内なら可)
+
+結果、外部 (Termux 等別 UID) から叩ける同期 IPC は実質 TCP loopback 一択。
 
 ## なぜ TCP loopback で困らないか
 
@@ -56,5 +63,49 @@ Linux 拡張の abstract namespace (`\0`-prefixed sun_path) を最初試した�
 - 双方向ストリーミング: 現状は 1 往復で close。長時間ストリーミング (ログ tail 等) なら keep-alive + サブスクリプション設計を追加
 - 認証: 現状無し。マルチユーザ端末や BYOD では localhost port の乗っ取りに注意 (別 UID からも connect 可)
 - HTTPS 化: 不要 (ループバックのみ)
+
+## 旧仕様: BroadcastReceiver 経由 CLI (`CliReceiver`)
+
+TCP API 導入前に使っていた通信手段。現在も動く (`CliReceiver.java` + Manifest exported)。TCP を使えない状況の fallback として残置。
+
+**使いどころ:**
+- `ApiServer` が上がっていない (Service 未接続直後など)
+- 別 UID / 別アプリから直接 trigger したい (broadcast は intent 権限で通る)
+- `adb shell` から一発叩きたい (`aa` CLI のセットアップ不要)
+
+**制約:**
+- fire-and-forget、戻り値なし。結果は `Logger` ファイル (`/sdcard/Download/autoact/logs/`) と `logcat` で確認
+- 対応アクションは 3 種のみ
+
+**対応アクション:**
+
+```bash
+# シナリオ実行 (name: scenarios/<name>.json を解決)
+am broadcast -a com.example.autoact.RUN_SCENARIO \
+  -n com.example.autoact/.CliReceiver \
+  --es scenario <name>
+
+# シナリオ実行 (絶対パス)
+am broadcast -a com.example.autoact.RUN_SCENARIO \
+  -n com.example.autoact/.CliReceiver \
+  --es scenario_path <abs-path>
+
+# 停止
+am broadcast -a com.example.autoact.STOP_SCENARIO \
+  -n com.example.autoact/.CliReceiver
+
+# a11y ツリー dump (即時)
+am broadcast -a com.example.autoact.DUMP_UI \
+  -n com.example.autoact/.CliReceiver \
+  --es tag <tag>
+
+# a11y ツリー dump (遅延 ms 指定、foreground 遷移待ち等)
+am broadcast -a com.example.autoact.DUMP_UI \
+  -n com.example.autoact/.CliReceiver \
+  --es tag <tag> \
+  --el delay <ms>
+```
+
+TCP API が使える環境なら TCP を優先 (レスポンス取得可、拡張性高)。
 
 参考: [api.md](api.md), [cli.md](cli.md)

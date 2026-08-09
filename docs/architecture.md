@@ -12,12 +12,13 @@
 │                                                            │
 │  ApiServer (Thread, ServerSocket)                          │
 │    └─ ApiClient (per-conn, read 1 line → dispatch)         │
-│         └─ ApiHandler.handle(cmd, args)                    │
-│              ├─ meta:  health/screen/top/status            │
-│              ├─ node:  find + Step 系 (click/setText 等)   │
-│              ├─ pkg:   install/uninstall/packages/launch   │
-│              ├─ intent: openUrl/intent/key                 │
-│              └─ scenario: run/run_sync/exec/exec_async     │
+│         └─ ApiHandler.handle(cmd, args) — router のみ      │
+│              ├─ ApiInfo:    health/screen/top/status/find  │
+│              ├─ ApiActions: run/exec/stop, install/pkg 系, │
+│              │              openUrl/intent                 │
+│              └─ Step 系 (click/setText/waitFor 等)         │
+│                   → ScenarioParser.parseStepWithOp         │
+│                   → ActionExecutor.execute                 │
 │                                                            │
 │  AutomationService (AccessibilityService)                  │
 │    ├─ onServiceConnected: ApiServer 起動                   │
@@ -42,11 +43,13 @@
 | `AutomationService.java` | AccessibilityService 本体。ApiServer / Runner のライフサイクル管理 |
 | `ApiServer.java` | ポート 8765 で LISTEN、接続毎に `ApiClient` を投入 |
 | `ApiClient.java` | 1 リクエストを read → ApiHandler → write → close |
-| `ApiHandler.java` | コマンドディスパッチ (~1200 行、全 cmd 集約) |
+| `ApiHandler.java` | エントリ + cmd router (~130 行)。cmd → 各ハンドラへ振り分け |
+| `ApiInfo.java` | 読み取り系: `health`/`screen`/`top`/`status`/`find` + node シリアライズ |
+| `ApiActions.java` | 副作用系: `run`/`exec`/`stop`, `install`/`uninstall`/`packages`/`launch`, `openUrl`/`intent` |
 | `ActionExecutor.java` | Step を実際の Android API 呼び出しに変換 |
 | `NodeFinder.java` | `by`/`value` → `AccessibilityNodeInfo` 解決 |
 | `GestureBuilder.java` | `GestureDescription` 組み立て (tap/swipe/curve/pinch/multi) |
-| `Scroller.java` | スクロール系 Step の実行 |
+| `LogScrollRunnable.java` | MainActivity のログ ScrollView を末尾追従させる Runnable (a11y とは無関係) |
 | `Installer.java` | PackageInstaller.Session ラッパ |
 | `InstallStatusReceiver.java` | 承認 Intent を Activity として起動 |
 | `Step.java` | Step の POJO + 定数 (OP\_\* / BY\_\*) |
@@ -61,8 +64,9 @@
 2. `aa` が `{"cmd":"click","args":{"by":"text","value":"OK"}}` を組み、`/dev/tcp/$AUTOACT_HOST/$AUTOACT_PORT` (既定 `127.0.0.1:8765`) に 1 行送信
 3. `ApiServer.accept()` → `ApiClient.run()` が 1 行 `readLine()`
 4. `ApiHandler.handle("click", args)`:
-   - args を Step に詰め替え
-   - `ActionExecutor.perform(svc, step)` を呼ぶ
+   - `dispatch` が cmd を振り分け。既知 cmd 以外 (`click` 含む Step 系) は `runStep` フォールバック
+   - `ScenarioParser.parseStepWithOp` で args → `Step`
+   - `ActionExecutor.execute(svc, step)` を呼ぶ
    - Step 内部で `NodeFinder.find(svc, "text", "OK")` → `node.performAction(ACTION_CLICK)`
 5. 結果を JSON 化して 1 行返して close
 

@@ -9,7 +9,7 @@ public class Scenario {
     public long defaultTimeoutMs = 5000L;
     public long maxDurationMs = 5 * 60 * 1000L;
     // (C) When true, ScenarioRunner accumulates a StepReport per executed step
-    // and ApiHandler.execScenario includes it in the response as `report`.
+    // and ApiActions.execScenario includes it in the response as `report`.
     public boolean withReport;
     public List<Step> steps = new ArrayList<Step>();
 }

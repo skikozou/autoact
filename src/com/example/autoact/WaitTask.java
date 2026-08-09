@@ -31,6 +31,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class WaitTask {
 
+    private static final long DEFAULT_POLL_INTERVAL_MS = 50L;
+
     private final AutomationService svc;
     private final FindSpec spec;
     private final long timeoutMs;
@@ -46,7 +48,7 @@ public class WaitTask {
         this.svc = svc;
         this.spec = spec;
         this.timeoutMs = Math.max(0L, timeoutMs);
-        this.intervalMs = intervalMs > 0 ? intervalMs : 50L;
+        this.intervalMs = intervalMs > 0 ? intervalMs : DEFAULT_POLL_INTERVAL_MS;
         this.pollMode = "poll".equalsIgnoreCase(mode);
     }
 

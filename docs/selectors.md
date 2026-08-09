@@ -47,7 +47,8 @@
 }}
 ```
 
-**効き所**: descContains 等の tree DFS 系は region で bounds skip すると数百 ms → 数十 ms に落ちる。詳細は [plan-abcd.md](plan-abcd.md)。
+**効き所**: descContains 等の tree DFS 系は region で subtree skip すると walk 打ち切りが効き、
+`limit=1` と併用で ~350ms → ~60ms 程度まで落ちる (10 語規模の実測)。
 
 ## 使い分け
 

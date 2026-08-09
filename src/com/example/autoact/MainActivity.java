@@ -254,6 +254,6 @@ public class MainActivity extends Activity implements View.OnClickListener {
         Iterator<String> it = tail.iterator();
         while (it.hasNext()) sb.append(it.next()).append('\n');
         logView.setText(sb.toString());
-        scroll.post(new Scroller(scroll));
+        scroll.post(new LogScrollRunnable(scroll));
     }
 }

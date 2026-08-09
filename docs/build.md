@@ -53,7 +53,10 @@ apksigner sign --ks "$KEYSTORE" --ks-pass pass:android --key-pass pass:android \
 
 ## 制約 (d8 3.3 由来)
 
-このバージョンの d8 で NPE を踏むパターンがあり、以下は**書けない**:
+Termux の d8 は `d8/stable 33.0.1-1` (D8 3.3 系、2022) が最新でアップデート手段がない。
+このバージョンは javac 21 が出力する `InnerClasses` / `Signature` 属性を正しくパースできず、
+以下のパターンで `NullPointerException: Cannot invoke "String.length()" because "<parameter1>" is null`
+を投げて dex 変換に失敗する。つまり以下は**書けない**:
 
 ### 匿名内部クラス / private inner class 禁止
 ```java
@@ -92,5 +95,3 @@ class MyCmp implements Comparator { public int compare(Object a, Object b) {...}
 aapt dump badging build/app-debug.apk | head -20   # パッケージ情報
 apksigner verify build/app-debug.apk               # 署名検証
 ```
-
-参考メモリ: `project_droidapp_build.md`, `project_droidapp_d8_generic.md`

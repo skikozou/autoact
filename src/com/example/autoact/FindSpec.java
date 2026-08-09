@@ -6,7 +6,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import org.json.JSONObject;
 
 /**
- * Selector + filters used by NodeFinder / WaitTask / ApiHandler.find.
+ * Selector + filters used by NodeFinder / WaitTask / ApiInfo.find.
  *
  * All fields are plain data; no accessors, no builder. Top-level class (not nested)
  * to satisfy d8's inner-class limitation.
@@ -20,13 +20,17 @@ import org.json.JSONObject;
  * result is empty. Anchor lookup uses the a11y ID fast-path.
  */
 public class FindSpec {
+    // Default walk cap when the caller doesn't specify `limit`.
+    // NodeFinder.find (first-hit) overrides to 1 explicitly.
+    public static final int DEFAULT_LIMIT = 30;
+
     public String by;             // text/textExact/textContains/id/idContains/desc/descContains/classContains/focused
     public String value;
     public String ancestorId;     // optional subtree anchor
     public Rect region;           // optional bounds filter (null = no filter)
     public boolean visibleOnly;
     public boolean clickableOnly;
-    public int limit = 1;         // early-return count (walk stops once satisfied)
+    public int limit = DEFAULT_LIMIT; // early-return count (walk stops once satisfied)
 
     /**
      * Parse from a JSON args object (as passed to ApiHandler cmd or a Step).
@@ -44,7 +48,7 @@ public class FindSpec {
         }
         s.visibleOnly = a.optBoolean("visibleOnly", false);
         s.clickableOnly = a.optBoolean("clickableOnly", false);
-        s.limit = a.optInt("limit", 1);
+        s.limit = a.optInt("limit", DEFAULT_LIMIT);
         JSONObject r = a.optJSONObject("region");
         if (r != null) s.region = parseRegion(r);
         return s;

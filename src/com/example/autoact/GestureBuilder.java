@@ -5,11 +5,17 @@ import android.graphics.Path;
 
 public class GestureBuilder {
 
+    // ---- minimum stroke durations (Android rejects too-short gestures) ----
+    private static final long MIN_STROKE_MS    = 60L;   // tap / swipe / curve
+    private static final long MIN_DRAG_HOLD_MS = 100L;  // drag: initial hold
+    private static final long MIN_DRAG_MS      = 120L;  // drag: move stroke
+    private static final long MIN_PINCH_MS     = 80L;   // pinch / multi-swipe
+
     public static GestureDescription tap(int x, int y, long durMs) {
         Path p = new Path();
         p.moveTo(x, y);
         GestureDescription.StrokeDescription s =
-                new GestureDescription.StrokeDescription(p, 0, Math.max(60L, durMs));
+                new GestureDescription.StrokeDescription(p, 0, Math.max(MIN_STROKE_MS, durMs));
         return new GestureDescription.Builder().addStroke(s).build();
     }
 
@@ -18,7 +24,7 @@ public class GestureBuilder {
         p.moveTo(x1, y1);
         p.lineTo(x2, y2);
         GestureDescription.StrokeDescription s =
-                new GestureDescription.StrokeDescription(p, 0, Math.max(60L, durMs));
+                new GestureDescription.StrokeDescription(p, 0, Math.max(MIN_STROKE_MS, durMs));
         return new GestureDescription.Builder().addStroke(s).build();
     }
 
@@ -30,7 +36,7 @@ public class GestureBuilder {
         p.moveTo(x1, y1);
         p.quadTo(cx, cy, x2, y2);
         GestureDescription.StrokeDescription s =
-                new GestureDescription.StrokeDescription(p, 0, Math.max(60L, durMs));
+                new GestureDescription.StrokeDescription(p, 0, Math.max(MIN_STROKE_MS, durMs));
         return new GestureDescription.Builder().addStroke(s).build();
     }
 
@@ -38,8 +44,8 @@ public class GestureBuilder {
     // Returns 3 strokes chained by continueStroke().
     public static GestureDescription drag(int x1, int y1, int x2, int y2,
                                           long holdMs, long durMs) {
-        long hold = Math.max(100L, holdMs);
-        long drag = Math.max(120L, durMs);
+        long hold = Math.max(MIN_DRAG_HOLD_MS, holdMs);
+        long drag = Math.max(MIN_DRAG_MS, durMs);
 
         Path pHold = new Path();
         pHold.moveTo(x1, y1);
@@ -69,7 +75,7 @@ public class GestureBuilder {
     public static GestureDescription pinch(int cx, int cy,
                                            int startSpan, int endSpan,
                                            long durMs) {
-        long dur = Math.max(80L, durMs);
+        long dur = Math.max(MIN_PINCH_MS, durMs);
         int hs = Math.max(1, startSpan / 2);
         int he = Math.max(1, endSpan / 2);
 
@@ -97,7 +103,7 @@ public class GestureBuilder {
                                                 int x2, int y2,
                                                 int offset,
                                                 long durMs) {
-        long dur = Math.max(80L, durMs);
+        long dur = Math.max(MIN_PINCH_MS, durMs);
         int off = Math.max(20, offset);
 
         // Perpendicular unit direction (for a horizontal-ish motion, offset in y)

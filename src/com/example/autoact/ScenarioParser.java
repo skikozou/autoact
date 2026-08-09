@@ -44,15 +44,28 @@ public class ScenarioParser {
         return s;
     }
 
-    private static Step parseStep(JSONObject o, long defTimeout) throws JSONException {
+    /**
+     * Parse a step from JSON. Requires "op" key. Used by scenario file loader.
+     */
+    public static Step parseStep(JSONObject o, long defTimeout) throws JSONException {
+        if (!o.has("op")) throw new JSONException("missing 'op'");
+        return parseStepWithOp(o, o.getString("op"), defTimeout);
+    }
+
+    /**
+     * Parse step fields from JSON with op supplied separately. Used by cmd
+     * handlers (ApiHandler.stepFromArgs) where op is the TCP cmd name and not
+     * carried in args.
+     */
+    public static Step parseStepWithOp(JSONObject o, String op, long defTimeout) throws JSONException {
         Step st = new Step();
-        st.op = o.getString("op");
-        st.by = o.optString("by", null);
-        st.value = o.optString("value", null);
-        st.text = o.optString("text", null);
-        st.tag = o.optString("tag", null);
-        st.dir = o.optString("dir", null);
-        st.dpad = o.optString("dpad", null);
+        st.op = op;
+        st.by    = optStr(o, "by");
+        st.value = optStr(o, "value");
+        st.text  = optStr(o, "text");
+        st.tag   = optStr(o, "tag");
+        st.dir   = optStr(o, "dir");
+        st.dpad  = optStr(o, "dpad");
 
         st.x  = o.optInt("x",  0);
         st.y  = o.optInt("y",  0);
@@ -78,14 +91,18 @@ public class ScenarioParser {
         st.retries    = o.optInt("retries", 0);
         st.progress   = (float) o.optDouble("progress", 0.0);
 
-        st.ancestorId = o.optString("ancestorId", null);
-        if (o.has("ancestorId") && o.isNull("ancestorId")) st.ancestorId = null;
-        st.mode          = o.optString("mode", null);
+        st.ancestorId    = optStr(o, "ancestorId");
+        st.mode          = optStr(o, "mode");
         st.visibleOnly   = o.optBoolean("visibleOnly", false);
         st.clickableOnly = o.optBoolean("clickableOnly", false);
-        st.limit         = o.optInt("limit", 1);
+        st.limit         = o.optInt("limit", FindSpec.DEFAULT_LIMIT);
         JSONObject region = o.optJSONObject("region");
         if (region != null) st.region = FindSpec.parseRegion(region);
         return st;
+    }
+
+    private static String optStr(JSONObject o, String k) {
+        if (!o.has(k) || o.isNull(k)) return null;
+        return o.optString(k, null);
     }
 }
