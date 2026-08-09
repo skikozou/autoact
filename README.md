@@ -4,11 +4,6 @@ Android を自動操作するためのフレームワーク。AccessibilityServi
 (タップ/スワイプ/文字入力/スクロール 等) をシナリオとして記述・実行できる。
 TCP JSON API と CLI (`aa`) を同梱。
 
-**テキスト入力は基本 `aa setText`** (a11y の `ACTION_SET_TEXT` 経由、IME 非依存で高速・確実)。
-別途 Gboard 日本語フリック入力を実 IME 経由で叩く `flick/` サブプロジェクトも同梱しているが、
-これはロマン仕様 (実機の IME 挙動を再現したい・IME 経由でしか反応しない UI を叩きたい 等の
-特殊用途) で、通常用途では非推奨。詳細は [`flick/`](flick/) の README/design 参照。
-
 ## 使い方
 
 APK ビルド → 端末インストール → **設定 > ユーザ補助** で AutoAct 有効化 → TCP `127.0.0.1:8765` で待ち受け開始。
@@ -26,13 +21,6 @@ aa run name=self_smoke                     # samples/ のシナリオ実行
 ```
 
 セットアップ、ビルド、詳細な API/シナリオ仕様は [`docs/`](docs/index.md) を参照。
-
-flick モジュール (基本非推奨、特殊用途のみ):
-
-```sh
-python3 flick/type_text.py "こんにちは"                    # Gboard フリック入力
-python3 flick/type_text.py --convert "きょうは" 今日は     # 変換候補選択
-```
 
 ## 構成
 
@@ -58,6 +46,20 @@ gitignore で除外している。導入手順は [`docs/setup.md`](docs/setup.m
 - **WaitTask** は AccessibilityEvent 駆動で出現待ちする (CPU polling ゼロ)
 
 詳細は [`docs/architecture.md`](docs/architecture.md)。
+
+## flick (基本非推奨)
+
+Gboard 日本語フリック入力を実 IME 経由で叩く Python サブプロジェクト。
+テキスト入力は通常 `aa setText by=focused text=...` (a11y `ACTION_SET_TEXT`、IME 非依存で
+高速・確実) を使えば済むので、flick は基本非推奨。実機の IME 挙動を再現したい・IME 経由で
+しか反応しない UI を叩きたい等のロマン用途向け。
+
+```sh
+python3 flick/type_text.py "こんにちは"                    # Gboard フリック入力
+python3 flick/type_text.py --convert "きょうは" 今日は     # 変換候補選択
+```
+
+キー座標は 1080×2392 縦画面 + Gboard 日本語12キー配列固有。詳細は [`flick/`](flick/) 配下。
 
 ## ライセンス
 
