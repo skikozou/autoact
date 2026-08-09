@@ -36,7 +36,7 @@
 | `ancestorId` | string (`pkg:id/foo`) | 指定 id の subtree だけ探索。座標変動に強い |
 | `visibleOnly` | bool | `isVisibleToUser()` のみ許可 |
 | `clickableOnly` | bool | `isClickable()` のみ許可 (直接クリック用) |
-| `limit` | int | `find` cmd での返却上限 (default 20)。walk が limit 満たしたら break で早期 return |
+| `limit` | int | `find` cmd での返却上限 (default 30 = `FindSpec.DEFAULT_LIMIT`)。walk が limit 満たしたら break で早期 return |
 
 例:
 ```json

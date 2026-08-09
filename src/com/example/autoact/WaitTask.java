@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class WaitTask {
 
-    private static final long DEFAULT_POLL_INTERVAL_MS = 50L;
+    public static final long DEFAULT_POLL_INTERVAL_MS = 30L;
 
     private final AutomationService svc;
     private final FindSpec spec;

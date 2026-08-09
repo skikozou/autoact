@@ -2,6 +2,19 @@
 
 `Step` は 1 手順の POJO。シナリオ (`{steps:[...]}`) の要素であり、単発でも `aa <op> ...` で叩ける。
 
+## シナリオ全体フィールド
+
+シナリオ JSON (ファイル or `exec` の `scenario`) は以下のトップレベルフィールドを持つ:
+
+| フィールド | 型 | デフォルト | 用途 |
+|---|---|---|---|
+| `steps` | array | (必須) | Step 配列 |
+| `name` | string | `"unnamed"` | ログ表示名 |
+| `targetPackage` | string | `""` | ログ用のヒント (実行時 pkg チェックはしない) |
+| `defaultTimeoutMs` | long | 5000 | 各 Step の `timeoutMs` 未指定時の値 |
+| `maxDurationMs` | long | 300000 | シナリオ全体の上限。超えると abort |
+| `withReport` | bool | false | `exec` レスポンスに per-step report を含める |
+
 ## 共通フィールド
 
 | フィールド | 型 | 用途 |

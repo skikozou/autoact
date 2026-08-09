@@ -87,7 +87,7 @@ public class ScenarioParser {
         st.durMs      = o.optLong("durMs", 300L);
         st.holdMs     = o.optLong("holdMs", 500L);
         st.timeoutMs  = o.optLong("timeoutMs", defTimeout);
-        st.intervalMs = o.optLong("intervalMs", 30L);
+        st.intervalMs = o.optLong("intervalMs", WaitTask.DEFAULT_POLL_INTERVAL_MS);
         st.retries    = o.optInt("retries", 0);
         st.progress   = (float) o.optDouble("progress", 0.0);
 

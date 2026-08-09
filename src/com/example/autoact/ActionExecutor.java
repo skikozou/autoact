@@ -24,7 +24,6 @@ public class ActionExecutor {
     private static final long DRAG_DISPATCH_SLACK_MS   = 200L;  // extra timeout margin for drag dispatch
     private static final int  DEFAULT_PINCH_START_PX   = 800;   // pinch startSpan default (px)
     private static final int  DEFAULT_PINCH_END_PX     = 200;   // pinch endSpan default (px)
-    private static final long DEFAULT_POLL_INTERVAL_MS = 50L;   // wait*Step / waitForGone: intervalMs default (poll mode)
 
     // Returns true on success, false on failure.
     public static boolean execute(AutomationService svc, Step st) throws InterruptedException {
@@ -303,7 +302,7 @@ public class ActionExecutor {
         // waitFor is first-appearance semantics; walking further wastes work.
         spec.limit = 1;
         long timeout = Math.max(0L, st.timeoutMs);
-        long interval = st.intervalMs > 0 ? st.intervalMs : DEFAULT_POLL_INTERVAL_MS;
+        long interval = st.intervalMs > 0 ? st.intervalMs : WaitTask.DEFAULT_POLL_INTERVAL_MS;
         String mode = st.mode == null ? "event" : st.mode;
         WaitTask w = new WaitTask(svc, spec, timeout, interval, mode);
         return w.await();
@@ -327,7 +326,7 @@ public class ActionExecutor {
         spec.clickableOnly = st.clickableOnly;
         spec.limit = 1; // presence check only
         long timeout = Math.max(0L, st.timeoutMs);
-        long interval = st.intervalMs > 0 ? st.intervalMs : DEFAULT_POLL_INTERVAL_MS;
+        long interval = st.intervalMs > 0 ? st.intervalMs : WaitTask.DEFAULT_POLL_INTERVAL_MS;
         String mode = st.mode == null ? "event" : st.mode;
         WaitTask w = new WaitTask(svc, spec, timeout, interval, mode, true);
         w.await();

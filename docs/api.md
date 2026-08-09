@@ -5,6 +5,13 @@ TCP 127.0.0.1:8765 / NDJSON。詳細プロトコルは [ipc.md](ipc.md)。
 リクエスト: `{"cmd":"<name>","args":{...}}\n`
 レスポンス: `{"ok":true|false,"result":{...}|"error":"...","tookMs":N}\n`
 
+## `cmd` の 2 系統
+
+`cmd` は 2 通りに解釈される:
+
+1. **API 固有 cmd** — `health` / `find` / `run` / `install` / `key` 等、本 doc に列挙してあるもの。専用ハンドラで処理
+2. **Step.op fallback** — 上記以外はすべて `Step.op` として扱い、`args` を Step のフィールドにマップして単発実行 (`click`, `setText`, `tap`, `swipe`, `waitFor` 等はこの経路)。op 一覧と各フィールドは [steps.md](steps.md)
+
 ## メタ / 状態
 
 ### `health`
@@ -35,34 +42,22 @@ TCP 127.0.0.1:8765 / NDJSON。詳細プロトコルは [ipc.md](ipc.md)。
 ```
 - `by`: 検索戦略 → [selectors.md](selectors.md)
 - `value`: 検索値 (`focused` の場合は不要)
-- `limit`: 返却上限 (デフォルト 20)。walk 系 by は limit 満たしたら早期 break
+- `limit`: 返却上限 (デフォルト 30 = `FindSpec.DEFAULT_LIMIT`)。walk 系 by は limit 満たしたら早期 break
 - `region`, `ancestorId`, `visibleOnly`, `clickableOnly`: 追加フィルタ → [selectors.md](selectors.md#追加フィルタ-findspec)
 
 返却: `{"matches":[{text, desc, class, package, id, clickable, ..., bounds, centerX, centerY}, ...], "count":N}`
 
-### `waitFor` / `waitClick`
-ノード出現待ち (event 駆動)。`waitClick` は出現直後に click まで一括。
-```json
-{"cmd":"waitFor","args":{
-  "by":"descContains","value":"送信",
-  "region":{"y1":1400,"y2":1550},
-  "timeoutMs":3000, "mode":"event"
-}}
-{"cmd":"waitClick","args":{ ...同上... }}
-```
-- `mode`: `event` (default) は `AccessibilityEvent` で起床、`poll` は `intervalMs` (default 30) 毎に再探索
-- 全 `find` フィルタ (`region`/`ancestorId`/…) が使える
-- タイムアウト時は `ok:false, error:"step failed: waitFor"` (or `waitClick`) を返す
-
 ### Step 転送 (単発 op 実行)
-Step 系 op はそのまま cmd として叩ける (`Step.OP_*`)。実装は [steps.md](steps.md) 参照。
+
+Step 系 op (`click`, `setText`, `tap`, `swipe`, `scroll`, `waitFor`, `waitClick` 等) はそのまま cmd として叩ける。フィールド一覧は [steps.md](steps.md)。
 ```json
 {"cmd":"click","args":{"by":"text","value":"OK","timeoutMs":3000}}
 {"cmd":"setText","args":{"by":"focused","text":"hello"}}
 {"cmd":"tap","args":{"x":500,"y":800}}
 {"cmd":"swipe","args":{"x1":540,"y1":1800,"x2":540,"y2":600,"durMs":400}}
-{"cmd":"scroll","args":{"by":"classContains","value":"WebView","dir":"forward"}}
+{"cmd":"waitClick","args":{"by":"descContains","value":"送信","timeoutMs":3000}}
 ```
+タイムアウト時は `ok:false, error:"step failed: <op>"` を返す。
 
 ## シナリオ実行
 
