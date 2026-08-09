@@ -2,7 +2,12 @@
 
 Android を自動操作するためのフレームワーク。AccessibilityService 経由で任意アプリの UI 操作
 (タップ/スワイプ/文字入力/スクロール 等) をシナリオとして記述・実行できる。
-TCP JSON API と CLI (`aa`)、Gboard 日本語フリック入力補助 (`flick/`) を同梱。
+TCP JSON API と CLI (`aa`) を同梱。
+
+**テキスト入力は基本 `aa setText`** (a11y の `ACTION_SET_TEXT` 経由、IME 非依存で高速・確実)。
+別途 Gboard 日本語フリック入力を実 IME 経由で叩く `flick/` サブプロジェクトも同梱しているが、
+これはロマン仕様 (実機の IME 挙動を再現したい・IME 経由でしか反応しない UI を叩きたい 等の
+特殊用途) で、通常用途では非推奨。詳細は [`flick/`](flick/) の README/design 参照。
 
 ## 使い方
 
@@ -20,14 +25,14 @@ aa dumpUi tag=cur                          # UI ツリーをダンプ
 aa run name=self_smoke                     # samples/ のシナリオ実行
 ```
 
-flick モジュール:
+セットアップ、ビルド、詳細な API/シナリオ仕様は [`docs/`](docs/index.md) を参照。
+
+flick モジュール (基本非推奨、特殊用途のみ):
 
 ```sh
 python3 flick/type_text.py "こんにちは"                    # Gboard フリック入力
 python3 flick/type_text.py --convert "きょうは" 今日は     # 変換候補選択
 ```
-
-セットアップ、ビルド、詳細な API/シナリオ仕様は [`docs/`](docs/index.md) を参照。
 
 ## 構成
 
@@ -38,7 +43,7 @@ autoact/
 ├── AndroidManifest.xml
 ├── samples/                  # サンプル scenario + aa CLI
 ├── docs/                     # ドキュメント (日本語)
-└── flick/                    # Gboard フリック入力補助 (Python)
+└── flick/                    # Gboard フリック入力補助 (Python, 基本非推奨・特殊用途)
 ```
 
 環境固有ファイル (`android.jar`, `debug.keystore`, `build.sh`, `flick/*.json` 等) は

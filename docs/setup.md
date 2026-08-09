@@ -4,14 +4,14 @@ AutoAct を clone してから APK を端末で動かすまでの手順。
 
 ## 環境固有ファイル (リポジトリに含まれない)
 
-以下 4 種は端末・開発環境に紐付くので gitignore で除外している。各自用意する。
+以下は端末・開発環境に紐付くので gitignore で除外している。各自用意する。
 
 | ファイル | 用途 | 入手方法 |
 |---|---|---|
 | `android.jar` | Android SDK ヘッダ (API 34 前提) | `$ANDROID_HOME/platforms/android-34/android.jar` をコピー or symlink |
 | `debug.keystore` | APK 署名鍵 | 自分で生成 (下記) |
 | `build.sh` | ビルドスクリプト | 開発環境向けに書く。Termux 用テンプレートは [build.md](build.md) |
-| `flick/{keymap,alpha_qwerty,alpha_flick_up,modes_dump,symbol_A}.json` | Gboard キー座標 (1080×2392 縦画面固有) | `flick/probe*.py` を実機で走らせて再生成 |
+| `flick/{keymap,alpha_qwerty,alpha_flick_up,modes_dump,symbol_A}.json` | Gboard キー座標 (1080×2392 縦画面固有) | flick を使う場合のみ。`flick/probe*.py` を実機で走らせて再生成 |
 
 ### debug.keystore 生成
 
@@ -49,9 +49,14 @@ ln -s "$ANDROID_HOME/platforms/android-34/android.jar" ./android.jar
 `aa` CLI は Termux/Linux/macOS/`adb shell` 等どこでも動く (bash /dev/tcp + python3 のみ)。
 別端末や adb フォワード先を叩く場合は `AUTOACT_HOST` / `AUTOACT_PORT` を設定 ([cli.md](cli.md))。
 
-## flick を使う場合の追加セットアップ
+## flick を使う場合の追加セットアップ (基本非推奨)
 
-Gboard 日本語12キー配列 + 1080×2392 縦画面前提。他解像度なら以下を実機で走らせて JSON を再生成:
+テキスト入力は原則 `aa setText by=focused text=...` を使う (a11y `ACTION_SET_TEXT`、IME 非依存で
+高速・確実)。flick は「実 IME 経由でしか反応しない UI を叩きたい」「Gboard の変換挙動を再現したい」
+等の特殊用途向けのロマン仕様なので、通常は不要。
+
+以下は flick を使う場合のみ。Gboard 日本語12キー配列 + 1080×2392 縦画面前提。他解像度なら
+実機で走らせて JSON を再生成:
 
 ```sh
 python3 flick/probe.py            # ひらがなキー座標 → keymap.json
