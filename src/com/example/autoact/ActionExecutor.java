@@ -24,7 +24,7 @@ public class ActionExecutor {
     private static final long DRAG_DISPATCH_SLACK_MS   = 200L;  // extra timeout margin for drag dispatch
     private static final int  DEFAULT_PINCH_START_PX   = 800;   // pinch startSpan default (px)
     private static final int  DEFAULT_PINCH_END_PX     = 200;   // pinch endSpan default (px)
-    private static final long DEFAULT_POLL_INTERVAL_MS = 50L;   // waitForGone poll interval when unspecified
+    private static final long DEFAULT_POLL_INTERVAL_MS = 50L;   // wait*Step / waitForGone: intervalMs default (poll mode)
 
     // Returns true on success, false on failure.
     public static boolean execute(AutomationService svc, Step st) throws InterruptedException {
@@ -111,7 +111,7 @@ public class ActionExecutor {
             return ok;
         }
         if (Step.OP_WAIT_FOR_GONE.equals(op)) {
-            return waitForGone(svc, st.by, st.value, st.timeoutMs);
+            return waitForGone(svc, st);
         }
         if (Step.OP_ASSERT.equals(op)) {
             AccessibilityNodeInfo n = NodeFinder.find(svc, st.by, st.value);
@@ -309,19 +309,29 @@ public class ActionExecutor {
         return w.await();
     }
 
-    public static boolean waitForGone(AutomationService svc,
-                                      String by, String value, long timeoutMs)
+    /**
+     * Event-driven "wait until gone" — symmetric with waitForStep.
+     * Honors all FindSpec fields on Step (region/ancestorId/visibleOnly/...).
+     * Returns true iff the target disappeared before timeoutMs.
+     */
+    public static boolean waitForGone(AutomationService svc, Step st)
             throws InterruptedException {
-        if (by == null) return false;
-        if (value == null && !Step.BY_FOCUSED.equals(by)) return false;
-        long deadline = System.currentTimeMillis() + Math.max(0L, timeoutMs);
-        while (true) {
-            AccessibilityNodeInfo n = NodeFinder.find(svc, by, value);
-            if (n == null) return true;
-            try { n.recycle(); } catch (Throwable ignored) {}
-            if (System.currentTimeMillis() >= deadline) return false;
-            Thread.sleep(200L);
-        }
+        if (st == null || st.by == null) return false;
+        if (st.value == null && !Step.BY_FOCUSED.equals(st.by)) return false;
+        FindSpec spec = new FindSpec();
+        spec.by = st.by;
+        spec.value = st.value;
+        spec.ancestorId = st.ancestorId;
+        spec.region = st.region;
+        spec.visibleOnly = st.visibleOnly;
+        spec.clickableOnly = st.clickableOnly;
+        spec.limit = 1; // presence check only
+        long timeout = Math.max(0L, st.timeoutMs);
+        long interval = st.intervalMs > 0 ? st.intervalMs : DEFAULT_POLL_INTERVAL_MS;
+        String mode = st.mode == null ? "event" : st.mode;
+        WaitTask w = new WaitTask(svc, spec, timeout, interval, mode, true);
+        w.await();
+        return w.isCompleted();
     }
 
     private static boolean dispatch(AutomationService svc,

@@ -1,6 +1,6 @@
 # ビルドパイプライン
 
-Gradle 不使用の Termux ビルド構成を記載。他の環境 (Android Studio, gradle) で組む場合は `src/` `res/` `AndroidManifest.xml` をそのまま import すればよい。d8 3.3 特有の制約 (下記) は現行 AGP なら不要。
+Gradle 不使用の Termux ビルド構成。他の環境 (Android Studio, gradle) で組む場合は `src/` `res/` `AndroidManifest.xml` をそのまま import できる (d8 3.3 制約は現行 AGP では非該当)。
 
 `build.sh` と `debug.keystore` は環境固有なのでリポジトリには含めていない。生成方法は [setup.md](setup.md) 参照。
 
@@ -53,10 +53,7 @@ apksigner sign --ks "$KEYSTORE" --ks-pass pass:android --key-pass pass:android \
 
 ## 制約 (d8 3.3 由来)
 
-Termux の d8 は `d8/stable 33.0.1-1` (D8 3.3 系、2022) が最新でアップデート手段がない。
-このバージョンは javac 21 が出力する `InnerClasses` / `Signature` 属性を正しくパースできず、
-以下のパターンで `NullPointerException: Cannot invoke "String.length()" because "<parameter1>" is null`
-を投げて dex 変換に失敗する。つまり以下は**書けない**:
+d8 3.3 (Termux の `d8/stable 33.0.1-1`) は javac 21 の `InnerClasses` / `Signature` 属性を正しく parse できず、以下は書けない (dex 変換時に NPE):
 
 ### 匿名内部クラス / private inner class 禁止
 ```java

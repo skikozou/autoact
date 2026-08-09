@@ -61,12 +61,12 @@
 |---|---|---|
 | `waitFor` | `timeoutMs`, `mode`, `intervalMs` | ノード出現待ち |
 | `waitClick` | 同上 + click | 出現待ち → 即 click。1 step で combo |
-| `waitForGone` | `timeoutMs` | 消失待ち |
+| `waitForGone` | `timeoutMs`, `mode`, `intervalMs` | 消失待ち (event 駆動、`waitFor` と対称) |
 | `assert` | | 存在確認 (失敗で step 失敗) |
 | `assertGone` | | 非存在確認 |
 | `sleep` | `ms` | 単純待機 |
 
-**`waitFor` / `waitClick` の追加フィールド:**
+**`waitFor` / `waitClick` / `waitForGone` の追加フィールド:**
 
 | フィールド | 型 | デフォルト | 説明 |
 |---|---|---|---|

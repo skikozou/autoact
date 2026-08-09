@@ -61,40 +61,42 @@ public class ApiHandler {
         if (cmd == null || cmd.length() == 0)
             throw new IllegalArgumentException("cmd required");
 
-        // Read-only introspection.
-        if ("health".equals(cmd))     return ApiInfo.health(svc);
-        if ("screen".equals(cmd))     return ApiInfo.screen(svc);
-        if ("top".equals(cmd))        return ApiInfo.top(svc);
-        if ("status".equals(cmd))     return ApiInfo.status(svc);
-        if ("find".equals(cmd))       return ApiInfo.find(svc, a);
+        switch (cmd) {
+            // Read-only introspection.
+            case "health": return ApiInfo.health(svc);
+            case "screen": return ApiInfo.screen(svc);
+            case "top":    return ApiInfo.top(svc);
+            case "status": return ApiInfo.status(svc);
+            case "find":   return ApiInfo.find(svc, a);
 
-        // Scenario lifecycle.
-        if ("stop".equals(cmd))       return ApiActions.stop(svc);
-        if ("run".equals(cmd))        return ApiActions.runByName(svc, a, false);
-        if ("run_sync".equals(cmd))   return ApiActions.runByName(svc, a, true);
-        if ("exec".equals(cmd))       return ApiActions.execScenario(svc, a, true);
-        if ("exec_async".equals(cmd)) return ApiActions.execScenario(svc, a, false);
+            // Scenario lifecycle.
+            case "stop":       return ApiActions.stop(svc);
+            case "run":        return ApiActions.runByName(svc, a, false);
+            case "run_sync":   return ApiActions.runByName(svc, a, true);
+            case "exec":       return ApiActions.execScenario(svc, a, true);
+            case "exec_async": return ApiActions.execScenario(svc, a, false);
 
-        // Package management.
-        if ("install".equals(cmd))        return ApiActions.install(svc, a);
-        if ("uninstall".equals(cmd))      return ApiActions.uninstall(svc, a);
-        if ("install_status".equals(cmd)) return ApiActions.installStatus();
-        if ("packages".equals(cmd))       return ApiActions.packages(svc, a);
-        if ("launch".equals(cmd))         return ApiActions.launch(svc, a);
+            // Package management.
+            case "install":        return ApiActions.install(svc, a);
+            case "uninstall":      return ApiActions.uninstall(svc, a);
+            case "install_status": return ApiActions.installStatus();
+            case "packages":       return ApiActions.packages(svc, a);
+            case "launch":         return ApiActions.launch(svc, a);
 
-        // Intent dispatch.
-        if ("openUrl".equals(cmd))    return ApiActions.openUrl(svc, a);
-        if ("intent".equals(cmd))     return ApiActions.intent(svc, a);
+            // Intent dispatch.
+            case "openUrl": return ApiActions.openUrl(svc, a);
+            case "intent":  return ApiActions.intent(svc, a);
 
-        // Key alias: {"cmd":"key","args":{"name":"back"}} -> forwarded as op "back"
-        if ("key".equals(cmd)) {
-            String name = a.optString("name", "");
-            if (name.length() == 0) throw new IllegalArgumentException("key: name required");
-            return runStep(svc, name, a);
+            // Key alias: {"cmd":"key","args":{"name":"back"}} -> forwarded as op "back"
+            case "key": {
+                String name = a.optString("name", "");
+                if (name.length() == 0) throw new IllegalArgumentException("key: name required");
+                return runStep(svc, name, a);
+            }
+
+            // Everything else: treat cmd as a Step.op. Args map 1:1 to Step fields.
+            default: return runStep(svc, cmd, a);
         }
-
-        // Everything else: treat cmd as a Step.op. Args map 1:1 to Step fields.
-        return runStep(svc, cmd, a);
     }
 
     // -------------------- single-step forward --------------------

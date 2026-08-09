@@ -47,8 +47,7 @@
 }}
 ```
 
-**効き所**: descContains 等の tree DFS 系は region で subtree skip すると walk 打ち切りが効き、
-`limit=1` と併用で ~350ms → ~60ms 程度まで落ちる (10 語規模の実測)。
+**効き所**: descContains 等の tree DFS 系は region で subtree を skip でき、`limit=1` と併用すれば walk を早期打ち切りできる (10 語規模で実測数十 ms オーダー)。
 
 ## 使い分け
 

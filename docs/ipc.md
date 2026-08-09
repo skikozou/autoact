@@ -27,27 +27,15 @@ export AUTOACT_PORT=8765        # default
 ← {"ok":true,"result":{"op":"tap","stepOk":true,"tookMs":22},"tookMs":22}\n
 ```
 
-## なぜ abstract Unix socket ではないか
+## IPC 手段の制約 (前提)
 
-Linux 拡張の abstract namespace (`\0`-prefixed sun_path) を最初試した。Android の SELinux ポリシーで **`untrusted_app` ドメインの cross-app abstract socket connect が拒否される** (Android 9+)。
+Android の SELinux / FS 権限下で、Termux (別 UID) から叩ける同期 IPC は TCP loopback がほぼ一択:
 
-再現症状:
-- APK 側で `LocalServerSocket("autoact")` が bind 成功
-- Termux 側から `socat ABSTRACT-CONNECT:autoact -` が `Permission denied`
-- `logcat` に SELinux avc denied
-
-抜け道 (root, LSPosed 等) はあるが root 不要な作りにしたいので TCP に倒した。
-
-### 他の IPC 手段を採らなかった理由
-
-- **Filesystem Unix socket**: 相互に書ける場所が事実上ない (`/sdcard/` は socket 作成不可、
-  `/data/data/<pkg>/` は自 UID からしか読めない)
+- **abstract Unix socket**: Android 9+ の SELinux `untrusted_app` ポリシーで cross-app connect 不可 (同一 UID 内のみ)
+- **filesystem Unix socket**: 相互に書ける場所がない (`/sdcard/` は socket 作成不可、`/data/data/<pkg>/` は自 UID のみ)
 - **Content Provider**: bash から叩ける薄いクライアントがなく重い
-- **abstract Unix socket**: 上記の通り cross-app connect が SELinux で塞がれる (同一 UID 内なら可)
 
-結果、外部 (Termux 等別 UID) から叩ける同期 IPC は実質 TCP loopback 一択。
-
-## なぜ TCP loopback で困らないか
+## TCP loopback の性質
 
 - ループバックは NAT/firewall の外なのでネットワーク経由アクセスは (別デバイスからは) 到達しない
 - Android の netstack 上ではあるが、実効オーバヘッドは無視できる
@@ -64,9 +52,9 @@ Linux 拡張の abstract namespace (`\0`-prefixed sun_path) を最初試した�
 - 認証: 現状無し。マルチユーザ端末や BYOD では localhost port の乗っ取りに注意 (別 UID からも connect 可)
 - HTTPS 化: 不要 (ループバックのみ)
 
-## 旧仕様: BroadcastReceiver 経由 CLI (`CliReceiver`)
+## BroadcastReceiver 経由 CLI (`CliReceiver`)
 
-TCP API 導入前に使っていた通信手段。現在も動く (`CliReceiver.java` + Manifest exported)。TCP を使えない状況の fallback として残置。
+TCP を使えない状況向けの補助経路 (`CliReceiver.java` + Manifest exported)。
 
 **使いどころ:**
 - `ApiServer` が上がっていない (Service 未接続直後など)
@@ -106,6 +94,6 @@ am broadcast -a com.example.autoact.DUMP_UI \
   --el delay <ms>
 ```
 
-TCP API が使える環境なら TCP を優先 (レスポンス取得可、拡張性高)。
+レスポンスや拡張性が要る場合は TCP を使う。
 
 参考: [api.md](api.md), [cli.md](cli.md)
