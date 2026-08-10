@@ -14,15 +14,14 @@ autoact の `exec` (シナリオ一括実行) で TCP 1接続で全ステップ�
   必ず `click by=id` (a11y ACTION_CLICK) で叩く.
 """
 import json
-import socket
 import sys
 import time
 import argparse
 
-HOST, PORT = "127.0.0.1", 8765
+from probe_common import HOST, PORT, IME_PKG, send
+
 KEYMAP_PATH = __file__.rsplit("/", 1)[0] + "/keymap.json"
 
-IME_PKG = "com.google.android.inputmethod.latin"
 KEY_ENTER = f"{IME_PKG}:id/key_pos_ime_action"
 KEY_SPACE = f"{IME_PKG}:id/key_pos_space"
 KEY_DEL   = f"{IME_PKG}:id/key_pos_del"
@@ -79,54 +78,7 @@ SYMBOL_TOGGLE_A_B_XY = (325, 2170)  # 1234/!?# canvas トグル
 KEY_SHIFT = f"{IME_PKG}:id/key_pos_shift"
 KEY_BACK_TO_PRIME = f"{IME_PKG}:id/key_pos_back_to_prime"
 
-# CHAR_MAP[ch] = (base_key, direction, dak_dir)
-#   direction: "C"=center tap / "L","U","R","D"= flick 方向
-#   dak_dir:   None       = 濁点操作なし
-#              "L" (←)    = 濁点   (は→ば, か→が, う→ゔ, つ→づ, ...)
-#              "R" (→)    = 半濁点 (は→ぱ)
-#              "U" (↑)    = 小文字化 (あ→ぁ, や→ゃ, つ→っ, う→ぅ, わ→ゎ)
-# 旧実装は「濁点キー N 回タップ」だったが, 現行 Gboard は濁点キーもフリック 3 方向で
-# 一発変換できる (dak L/R/U). N 回連打 + right_arrow ガードの複雑さを撲滅.
-CHAR_MAP = {
-    "あ": ("a","C",None), "い": ("a","L",None), "う": ("a","U",None), "え": ("a","R",None), "お": ("a","D",None),
-    "ぁ": ("a","C","U"), "ぃ": ("a","L","U"), "ぅ": ("a","U","U"), "ぇ": ("a","R","U"), "ぉ": ("a","D","U"),
-    "ゔ": ("a","U","L"),
-    "か": ("ka","C",None), "き": ("ka","L",None), "く": ("ka","U",None), "け": ("ka","R",None), "こ": ("ka","D",None),
-    "が": ("ka","C","L"), "ぎ": ("ka","L","L"), "ぐ": ("ka","U","L"), "げ": ("ka","R","L"), "ご": ("ka","D","L"),
-    "さ": ("sa","C",None), "し": ("sa","L",None), "す": ("sa","U",None), "せ": ("sa","R",None), "そ": ("sa","D",None),
-    "ざ": ("sa","C","L"), "じ": ("sa","L","L"), "ず": ("sa","U","L"), "ぜ": ("sa","R","L"), "ぞ": ("sa","D","L"),
-    "た": ("ta","C",None), "ち": ("ta","L",None), "つ": ("ta","U",None), "て": ("ta","R",None), "と": ("ta","D",None),
-    "だ": ("ta","C","L"), "ぢ": ("ta","L","L"), "づ": ("ta","U","L"), "で": ("ta","R","L"), "ど": ("ta","D","L"),
-    "っ": ("ta","U","U"),
-    "な": ("na","C",None), "に": ("na","L",None), "ぬ": ("na","U",None), "ね": ("na","R",None), "の": ("na","D",None),
-    "は": ("ha","C",None), "ひ": ("ha","L",None), "ふ": ("ha","U",None), "へ": ("ha","R",None), "ほ": ("ha","D",None),
-    "ば": ("ha","C","L"), "び": ("ha","L","L"), "ぶ": ("ha","U","L"), "べ": ("ha","R","L"), "ぼ": ("ha","D","L"),
-    "ぱ": ("ha","C","R"), "ぴ": ("ha","L","R"), "ぷ": ("ha","U","R"), "ぺ": ("ha","R","R"), "ぽ": ("ha","D","R"),
-    "ま": ("ma","C",None), "み": ("ma","L",None), "む": ("ma","U",None), "め": ("ma","R",None), "も": ("ma","D",None),
-    "や": ("ya","C",None), "ゆ": ("ya","U",None), "よ": ("ya","D",None),
-    "ゃ": ("ya","C","U"), "ゅ": ("ya","U","U"), "ょ": ("ya","D","U"),
-    "ら": ("ra","C",None), "り": ("ra","L",None), "る": ("ra","U",None), "れ": ("ra","R",None), "ろ": ("ra","D",None),
-    "わ": ("wa","C",None), "を": ("wa","L",None), "ん": ("wa","U",None), "ー": ("wa","R",None), "〜": ("wa","D",None),
-    "ゎ": ("wa","C","U"),
-    "、": ("ten","C",None), "。": ("ten","L",None), "？": ("ten","U",None), "！": ("ten","R",None), "…": ("ten","D",None),
-    "?": ("ten","U",None), "!": ("ten","R",None),
-    "（": ("ya","L",None), "）": ("ya","R",None), "(": ("ya","L",None), ")": ("ya","R",None),
-}
-
-def send(cmd, args=None, timeout=60):
-    req = json.dumps({"cmd": cmd, "args": args or {}}, ensure_ascii=False) + "\n"
-    s = socket.socket()
-    s.settimeout(timeout)
-    s.connect((HOST, PORT))
-    s.sendall(req.encode("utf-8"))
-    buf = b""
-    while not buf.endswith(b"\n"):
-        chunk = s.recv(65536)
-        if not chunk:
-            break
-        buf += chunk
-    s.close()
-    return json.loads(buf.decode("utf-8"))
+from char_tables import CHAR_MAP
 
 def load_keymap():
     with open(KEYMAP_PATH) as f:
@@ -138,6 +90,21 @@ def _tap_step(cx, cy):
     return {"op":"swipe","x1":cx,"y1":cy,"x2":cx,"y2":cy+1,"durMs":30}
 
 FLICK_DELTA = {"L":(-1,0), "U":(0,-1), "R":(1,0), "D":(0,1)}
+
+
+def _flick_step(cx, cy, direction, px=1, dur=60):
+    """direction='C' なら 1px swipe (tap), それ以外 (L/U/R/D) は px×方向の flick swipe."""
+    if direction == "C":
+        return _tap_step(cx, cy)
+    dxu, dyu = FLICK_DELTA[direction]
+    return {"op":"swipe","x1":cx,"y1":cy,
+            "x2":cx+dxu*px,"y2":cy+dyu*px,"durMs":dur}
+
+
+def _append_with_gap(steps, step, gap_ms):
+    steps.append(step)
+    if gap_ms > 0:
+        steps.append({"op":"sleep","ms":gap_ms})
 
 def build_type_steps(text, cfg, gap_ms=0):
     """hira 12キー入力の steps を build.
@@ -154,43 +121,29 @@ def build_type_steps(text, cfg, gap_ms=0):
     dak_xy = keys["dak"]["xy"]
     steps = []
     prev_key = None
-    def gap():
-        if gap_ms > 0: steps.append({"op":"sleep","ms":gap_ms})
-    def sep(cur_key):
-        nonlocal prev_key
-        if prev_key is not None and cur_key == prev_key:
-            steps.append({"op":"click","by":"id","value":KEY_RIGHT_ARROW})
-        prev_key = cur_key
-    def emit(cx, cy, direction):
-        """direction が 'C' なら 1px swipe (tap), それ以外は flick swipe."""
-        if direction == "C":
-            steps.append(_tap_step(cx, cy))
-        else:
-            dxu, dyu = FLICK_DELTA[direction]
-            steps.append({"op":"swipe","x1":cx,"y1":cy,
-                          "x2":cx+dxu*px,"y2":cy+dyu*px,"durMs":dur})
     for ch in text:
         if ch in (" ", "\u3000"):
-            steps.append({"op":"click","by":"id","value":KEY_SPACE})  # 変換誤爆回避
-            gap(); prev_key = "space"
+            _append_with_gap(steps, {"op":"click","by":"id","value":KEY_SPACE}, gap_ms)
+            prev_key = "space"
             continue
         if ch == "\n":
-            steps.append({"op":"click","by":"id","value":KEY_ENTER})
-            gap(); prev_key = "enter"
+            _append_with_gap(steps, {"op":"click","by":"id","value":KEY_ENTER}, gap_ms)
+            prev_key = "enter"
             continue
         if ch not in CHAR_MAP:
             print(f"[skip] no mapping: {ch!r}", file=sys.stderr)
             continue
         key, d, dak = CHAR_MAP[ch]
         cx, cy = keys[key]["xy"]
-        sep(key)
-        emit(cx, cy, d)
-        gap()
+        # 同じ base key 連続は Gboard の multi-tap 判定を避けるため right_arrow で区切る
+        if prev_key is not None and key == prev_key:
+            steps.append({"op":"click","by":"id","value":KEY_RIGHT_ARROW})
+        prev_key = key
+        _append_with_gap(steps, _flick_step(cx, cy, d, px, dur), gap_ms)
         if dak is not None:
             # dak は 3 方向フリック (L=濁点, R=半濁点, U=小文字化). C は使わない.
-            emit(dak_xy[0], dak_xy[1], dak)
+            _append_with_gap(steps, _flick_step(dak_xy[0], dak_xy[1], dak, px, dur), gap_ms)
             prev_key = "dak"
-            gap()
     return steps
 
 def type_text(text, cfg, gap_ms=0):
@@ -200,134 +153,114 @@ def type_text(text, cfg, gap_ms=0):
 def build_alpha_steps(text, gap_ms=0):
     """英字/数字/記号 (alpha mode) の steps を build."""
     steps = []
-    def gap(ms):
-        if ms > 0: steps.append({"op":"sleep","ms":ms})
     for ch in text:
         if ch == " ":
-            steps.append({"op":"click","by":"id","value":KEY_SPACE})
+            _append_with_gap(steps, {"op":"click","by":"id","value":KEY_SPACE}, gap_ms)
         elif ch == "\n":
-            steps.append({"op":"click","by":"id","value":KEY_ENTER})
+            _append_with_gap(steps, {"op":"click","by":"id","value":KEY_ENTER}, gap_ms)
         elif ch in ALPHA_KEYS:
-            x, y = ALPHA_KEYS[ch]
-            steps.append(_tap_step(x, y))
+            _append_with_gap(steps, _tap_step(*ALPHA_KEYS[ch]), gap_ms)
         elif ch.isupper() and ch.lower() in ALPHA_KEYS:
-            sx, sy = ALPHA_SHIFT_XY
-            steps.append(_tap_step(sx, sy))
-            x, y = ALPHA_KEYS[ch.lower()]
-            steps.append(_tap_step(x, y))
+            steps.append(_tap_step(*ALPHA_SHIFT_XY))
+            _append_with_gap(steps, _tap_step(*ALPHA_KEYS[ch.lower()]), gap_ms)
         elif ch in ALPHA_FLICK_UP:
-            base = ALPHA_FLICK_UP[ch]
-            x, y = ALPHA_KEYS[base]
-            steps.append({"op":"swipe","x1":x,"y1":y,"x2":x,"y2":y-100,"durMs":60})
+            x, y = ALPHA_KEYS[ALPHA_FLICK_UP[ch]]
+            _append_with_gap(steps, _flick_step(x, y, "U", px=100), gap_ms)
         else:
             print(f"[skip alpha] no mapping: {ch!r}", file=sys.stderr)
-            continue
-        gap(gap_ms)
     return steps
 
 def type_alpha(text, gap_ms=0):
     steps = build_alpha_steps(text, gap_ms)
     return send("exec", {"scenario":{"name":"alpha","steps":steps}}, timeout=120)
 
-def in_alpha_mode():
-    """今 alpha モードか判定 (key_pos_shift が alpha 位置にあれば)."""
-    r = send("find", {"by":"id","value":f"{IME_PKG}:id/key_pos_shift","limit":1})
+MODES = ("hira", "alpha", "sym_A1", "sym_A2", "sym_B")
+
+def _current_mode():
+    """find 1 発で現在 mode を判定。
+    'hira' | 'alpha' | 'sym_A1' | 'sym_A2' | 'sym_B' | 'unknown'."""
+    r = send("find", {"by":"idContains","value":"key_pos_","limit":60})
+    ids = {}
     for m in r.get("result",{}).get("matches",[]):
-        if m.get("centerY") == 2040:  # alpha row 4
-            return True
+        short = (m.get("id") or "").rsplit(":id/",1)[-1]
+        ids[short] = m
+    if any(k.startswith("key_pos_ja_12keys") for k in ids):
+        return "hira"
+    if "key_pos_back_to_prime" in ids:
+        sh = ids.get("key_pos_shift")
+        if sh:
+            d = (sh.get("desc") or "").strip()
+            if "その他" in d: return "sym_A1"
+            if d == "記号": return "sym_A2"
+        return "sym_B"
+    if "key_pos_shift" in ids:  # shift はあるが back_to_prime 無し = alpha
+        return "alpha"
+    return "unknown"
+
+def _step_toward(cur, target):
+    """cur から target に近づく 1 手を発火。発火できたら True、詰みなら False."""
+    # sym_B は独自の toggle で sym_A に上げてから他所へ
+    if cur == "sym_B":
+        x, y = SYMBOL_TOGGLE_A_B_XY
+        send("swipe", {"x1":x, "y1":y, "x2":x, "y2":y+1, "durMs":30})
+        return True
+    # symbol 内 A1 ↔ A2 は shift 1 発
+    if cur in ("sym_A1","sym_A2") and target in ("sym_A1","sym_A2"):
+        send("click", {"by":"id","value":KEY_SHIFT})
+        return True
+    # symbol から出る (hira/alpha 側は back_to_prime の着地を再判定)
+    if cur in ("sym_A1","sym_A2") and target in ("hira","alpha"):
+        send("click", {"by":"id","value":KEY_BACK_TO_PRIME})
+        return True
+    # hira/alpha → symbol (last-used variant に着地するので再判定)
+    if cur in ("hira","alpha") and target.startswith("sym"):
+        send("click", {"by":"id","value":KEY_SWITCH_SYMBOL})
+        return True
+    # hira ↔ alpha
+    if (cur, target) in (("hira","alpha"), ("alpha","hira")):
+        send("click", {"by":"id","value":KEY_SWITCH_HIRA_ALPHA})
+        return True
     return False
 
-def in_hira_mode():
-    r = send("find", {"by":"idContains","value":"key_pos_ja_12keys","limit":1})
-    return bool(r.get("result",{}).get("matches"))
+def ensure_mode(target, max_steps=5, settle=0.4):
+    """target まで 1 手ずつ遷移+再判定 (最大 max_steps 手).
+    target: 'hira'|'alpha'|'sym_A1'|'sym_A2'."""
+    assert target in ("hira","alpha","sym_A1","sym_A2"), f"bad target: {target}"
+    for _ in range(max_steps):
+        cur = _current_mode()
+        if cur == target:
+            return True
+        if not _step_toward(cur, target):
+            return False
+        time.sleep(settle)
+    return _current_mode() == target
 
-def switch_to_alpha():
-    if in_alpha_mode(): return True
-    # symbol の場合は back_to_prime で直前 (alpha か hira) に戻る
-    if in_symbol_mode():
-        send("click", {"by":"id","value":KEY_BACK_TO_PRIME})
-        time.sleep(0.4)
-        if in_alpha_mode(): return True
-    send("click", {"by":"id","value":KEY_SWITCH_HIRA_ALPHA})
-    time.sleep(0.4)
-    return in_alpha_mode()
-
-def switch_to_hira():
-    if in_hira_mode(): return True
-    # symbol の場合は back_to_prime で alpha に戻ってから hira へ
-    if in_symbol_mode():
-        send("click", {"by":"id","value":KEY_BACK_TO_PRIME})
-        time.sleep(0.4)
-    if in_hira_mode(): return True
-    send("click", {"by":"id","value":KEY_SWITCH_HIRA_ALPHA})
-    time.sleep(0.4)
-    return in_hira_mode()
-
-def in_symbol_mode():
-    r = send("find", {"by":"id","value":KEY_BACK_TO_PRIME,"limit":1})
-    return bool(r.get("result",{}).get("matches"))
-
+# ---- 互換ラッパ (bench_convert / probe_symbol / docs 用) ----
+def in_hira_mode():   return _current_mode() == "hira"
+def in_alpha_mode():  return _current_mode() == "alpha"
+def in_symbol_mode(): return _current_mode().startswith("sym")
+def switch_to_hira():  return ensure_mode("hira")
+def switch_to_alpha(): return ensure_mode("alpha")
+def ensure_symbol_A1(): return ensure_mode("sym_A1")
+def ensure_symbol_A2(): return ensure_mode("sym_A2")
 def symbol_state():
-    """'A1', 'A2', 'B', or None."""
-    r = send("find", {"by":"id","value":KEY_SHIFT,"limit":1})
-    ms = r.get("result",{}).get("matches",[])
-    if ms:
-        d = (ms[0].get("desc") or "").strip()
-        if "その他" in d: return "A1"
-        if d == "記号": return "A2"
-        return "A?"
-    if in_symbol_mode(): return "B"
-    return None
-
-def switch_to_symbol():
-    """symbol モードに入る (last-used variant)."""
-    if in_symbol_mode(): return True
-    send("click", {"by":"id","value":KEY_SWITCH_SYMBOL})
-    time.sleep(0.4)
-    return in_symbol_mode()
-
-def ensure_symbol_A1():
-    if not switch_to_symbol(): return False
-    st = symbol_state()
-    if st == "B":
-        # 1234 toggle -> A
-        send("swipe", {"x1":SYMBOL_TOGGLE_A_B_XY[0], "y1":SYMBOL_TOGGLE_A_B_XY[1],
-                       "x2":SYMBOL_TOGGLE_A_B_XY[0], "y2":SYMBOL_TOGGLE_A_B_XY[1]+1, "durMs":30})
-        time.sleep(0.4)
-        st = symbol_state()
-    if st == "A2":
-        send("click", {"by":"id","value":KEY_SHIFT})
-        time.sleep(0.4)
-        st = symbol_state()
-    return st == "A1"
-
-def ensure_symbol_A2():
-    if not ensure_symbol_A1(): return False
-    send("click", {"by":"id","value":KEY_SHIFT})
-    time.sleep(0.4)
-    return symbol_state() == "A2"
+    return {"sym_A1":"A1","sym_A2":"A2","sym_B":"B"}.get(_current_mode())
 
 def build_symbol_steps(text, gap_ms=0):
     """symbol モード内で連続文字列を打つ. A1/A2 切替は python 側で分割してから呼ぶ.
     ここでは 1 ページの chars だけ扱う (呼び出し側で保証)."""
     steps = []
-    def gap(ms):
-        if ms > 0: steps.append({"op":"sleep","ms":ms})
     for ch in text:
         if ch == " ":
-            steps.append({"op":"click","by":"id","value":KEY_SPACE})
+            _append_with_gap(steps, {"op":"click","by":"id","value":KEY_SPACE}, gap_ms)
         elif ch == "\n":
-            steps.append({"op":"click","by":"id","value":KEY_ENTER})
+            _append_with_gap(steps, {"op":"click","by":"id","value":KEY_ENTER}, gap_ms)
         elif ch in SYMBOL_A1_KEYS:
-            x, y = SYMBOL_A1_KEYS[ch]
-            steps.append(_tap_step(x, y))
+            _append_with_gap(steps, _tap_step(*SYMBOL_A1_KEYS[ch]), gap_ms)
         elif ch in SYMBOL_A2_KEYS:
-            x, y = SYMBOL_A2_KEYS[ch]
-            steps.append(_tap_step(x, y))
+            _append_with_gap(steps, _tap_step(*SYMBOL_A2_KEYS[ch]), gap_ms)
         else:
             print(f"[skip symbol] no mapping: {ch!r}", file=sys.stderr)
-            continue
-        gap(gap_ms)
     return steps
 
 def type_symbol_page(text, gap_ms=0):
@@ -344,26 +277,19 @@ def commit_first_candidate():
     return send("click", {"by":"id","value":KEY_SPACE})
 
 def find_candidate_by_prefix(target):
-    """候補バーから desc が target で始まる候補を探し, 見つかればそのノードを click.
+    """候補バーから desc が target で始まる候補を探し, 見つかればそのノードを返す.
 
     候補バー: RecyclerView bounds [5,1420,965,1536] 内の FrameLayout, C=1.
-    desc 形式: "<候補>。<漢字読み解説>..."
+    desc 形式: "<候補>。<漢字読み解説>..."  (最後の候補は "。" が無いことも)
     """
-    # region で候補バー y=[1400,1550] のみ走査 → tree DFS を早期打ち切り
-    region = {"y1": 1400, "y2": 1550}
-    r = send("find", {"by":"descContains","value":target + "。",
-                      "region":region, "limit":1})
-    matches = r.get("result",{}).get("matches",[])
-    for m in matches:
-        d = m.get("desc","") or ""
-        if d.startswith(target + "。"):
-            return m
-    # target 自体で終わる場合 (最後の候補, desc に "。" が無いパターン)
+    # region で候補バー y=[1400,1550] のみ走査 → tree DFS を早期打ち切り.
+    # descContains value=target で 1 発, Python 側で startswith/== target を filter.
+    # limit=5: 候補バーの 4 見えるノード + 予備 (region で他ノードは除外される想定)
     r = send("find", {"by":"descContains","value":target,
-                      "region":region, "limit":1})
+                      "region":{"y1":1400, "y2":1550}, "limit":5})
     for m in r.get("result",{}).get("matches",[]):
         d = m.get("desc","") or ""
-        if d == target:
+        if d.startswith(target + "。") or d == target:
             return m
     return None
 

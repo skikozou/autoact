@@ -4,21 +4,15 @@ Gboard は 3 モード + 記号 3 バリアントを持ち、それぞれの遷�
 
 ## モード一覧
 
-| モード | 判定 (a11y) | flick.py 判定関数 |
-|---|---|---|
-| hira (12キー) | `key_pos_ja_12keys_*` が存在 | `in_hira_mode()` |
-| alpha (QWERTY) | `key_pos_shift` が y=2040 に | `in_alpha_mode()` |
-| symbol | `key_pos_back_to_prime` が存在 | `in_symbol_mode()` |
+| モード名 | 判定 (a11y) |
+|---|---|
+| `hira` (12キー) | `key_pos_ja_12keys_*` が存在 |
+| `alpha` (QWERTY) | `key_pos_shift` あり / `key_pos_back_to_prime` なし |
+| `sym_A1` | `key_pos_back_to_prime` + `key_pos_shift.desc` に `"その他"` |
+| `sym_A2` | `key_pos_back_to_prime` + `key_pos_shift.desc == "記号"` |
+| `sym_B` (数字パッド) | `key_pos_back_to_prime` あり / `key_pos_shift` なし |
 
-symbol はさらに 3 バリアント:
-
-| バリアント | 内容 | 判定 (shift の desc) |
-|---|---|---|
-| A1 | QWERTY 記号 1ページ目 | `"その他"` を含む |
-| A2 | QWERTY 記号 2ページ目 | `"記号"` exact |
-| B  | 数字パッド | shift 自体が無い |
-
-`flick.symbol_state()` が `'A1'/'A2'/'B'/None` を返す。
+`flick._current_mode()` が上記のいずれか (or `"unknown"`) を find 1 発で返す。
 
 ## 遷移マップ
 
@@ -41,35 +35,33 @@ symbol はさらに 3 バリアント:
 - alpha から hira への直接切替キーは a11y 露出なし。**alpha → hira は key_pos_switch_hiragana_alphabet が使えず**、実質 hira 経由でしか戻れない。
 - 現状の `switch_to_hira()` は hira ではないなら `switch_hiragana_alphabet` を叩くが、alpha 単独からは失敗する可能性あり (今後の課題)。回避策: 一度 symbol を経由するか、 setIme か、外部 IME picker。
 
-## symbol variant の癖: **last-used が開く**
+## `ensure_mode(target)` に集約
 
-`key_pos_switch_to_symbol` をクリックすると、Gboard は **直前に開いていた symbol variant を再表示** する:
+flick.py の `ensure_mode(target)` が唯一の入口。`target` は `"hira" | "alpha" | "sym_A1" | "sym_A2"`。
 
-- 直前が A1 → A1 が開く
-- 直前が A2 → A2 が開く
-- 直前が B (数字パッド) → B が開く
-
-つまり最初に何が来るか予測不能。`ensure_symbol_A1() / ensure_symbol_A2()` で正規化する:
+内部は「1 手発火 → settle 400ms → 再判定」ループ (最大 5 手):
 
 ```python
-def ensure_symbol_A1():
-    switch_to_symbol()
-    st = symbol_state()
-    if st == "B":
-        # B → A: canvas (325, 2170) を tap (「1234」/「!?#」トグル)
-        send("swipe", {x1:325,y1:2170,x2:325,y2:2171,durMs:30})
-        st = symbol_state()  # 再判定
-    if st == "A2":
-        # A2 → A1: shift クリック
-        send("click", {"by":"id","value":KEY_SHIFT})
-        st = symbol_state()
-    return st == "A1"
-
-def ensure_symbol_A2():
-    ensure_symbol_A1()  # まず A1 に正規化
-    send("click", {"by":"id","value":KEY_SHIFT})  # A1 → A2
-    return symbol_state() == "A2"
+for _ in range(max_steps):
+    cur = _current_mode()
+    if cur == target: return True
+    _step_toward(cur, target)   # 遷移テーブルに沿って 1 click / swipe
+    time.sleep(settle)
 ```
+
+`_step_toward` の遷移テーブル:
+
+| cur → | 発火する op |
+|---|---|
+| `sym_B` → 何処でも | canvas (325, 2170) 1px swipe (sym_A に上げる) |
+| `sym_A1 ↔ sym_A2` | `click key_pos_shift` |
+| `sym_A*` → `hira`/`alpha` | `click key_pos_back_to_prime` (着地は再判定) |
+| `hira`/`alpha` → `sym_*` | `click key_pos_switch_to_symbol` (last-used variant に着地するので再判定) |
+| `hira ↔ alpha` | `click key_pos_switch_hiragana_alphabet` |
+
+**symbol variant の last-used 癖**は再判定ループで自動的に処理される (A1 が欲しくて A2 に着地したら次周で shift、B に着地したら次周で toggle)。
+
+互換ラッパ (`switch_to_hira()`, `ensure_symbol_A1()`, `in_hira_mode()` 等) は `ensure_mode` / `_current_mode` の薄いエイリアス。
 
 ## 遷移でハマった罠
 
@@ -79,25 +71,11 @@ def ensure_symbol_A2():
 - **状況**: 底列に「あA」ボタンが物理的にない Gboard 設定になっている場合。space バーが「QWERTY」ラベル表示になっている
 - **回避**: 一度 hira にたどり着ければあとは `switch_hiragana_alphabet` で往復できる。初回だけ手動 setup が必要な場合あり
 
-### 罠2: symbol→alpha を key_pos_switch_hiragana_alphabet で試みる
-
-- **症状**: `switch_to_alpha` が symbol モードから呼ばれると、`key_pos_switch_hiragana_alphabet` が symbol にも無いので silent fail
-- **修正**: `switch_to_alpha()` は symbol モードなら先に `key_pos_back_to_prime` を叩いて alpha に戻る
-  ```python
-  def switch_to_alpha():
-      if in_alpha_mode(): return True
-      if in_symbol_mode():
-          send("click", {"by":"id","value":KEY_BACK_TO_PRIME})
-          if in_alpha_mode(): return True
-      send("click", {"by":"id","value":KEY_SWITCH_HIRA_ALPHA})
-      return in_alpha_mode()
-  ```
-
-### 罠3: back_to_prime は「直前 mode」に戻る、hira とは限らない
+### 罠2: back_to_prime は「直前 mode」に戻る、hira とは限らない
 
 - `key_pos_back_to_prime` は symbol に入る前のモード (alpha または hira) に戻す
 - hira→symbol→back なら hira に、alpha→symbol→back なら alpha に戻る
-- 意図と違うモードに戻ることがあるので、戻った後に必ず `in_*_mode()` で再判定
+- `ensure_mode` は 1 手ずつ再判定するため、着地が想定外でも次周で修正される
 
 ### 罠4: モード切替の settle 時間
 

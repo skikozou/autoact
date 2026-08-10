@@ -135,28 +135,25 @@ def type_hira_segment(orig, hira, cfg, verbose=True, gap_ms=DEFAULT_GAP_MS):
     return False
 
 def run_alpha(text, verbose=True, gap_ms=DEFAULT_GAP_MS):
-    if not flick.switch_to_alpha():
-        if verbose: print("  [!!] switch alpha failed", file=sys.stderr)
+    if not flick.ensure_mode("alpha"):
+        if verbose: print("  [!!] ensure_mode(alpha) failed", file=sys.stderr)
         return False
     r = flick.type_alpha(text, gap_ms=gap_ms)
     if verbose: print(f"  [alpha] {text!r} ok={r.get('ok')}")
     return r.get("ok", False)
 
 def run_symbol(text, page, verbose=True, gap_ms=DEFAULT_GAP_MS):
-    if page == "A1":
-        ok = flick.ensure_symbol_A1()
-    else:
-        ok = flick.ensure_symbol_A2()
-    if not ok:
-        if verbose: print(f"  [!!] switch symbol {page} failed", file=sys.stderr)
+    target = "sym_A1" if page == "A1" else "sym_A2"
+    if not flick.ensure_mode(target):
+        if verbose: print(f"  [!!] ensure_mode({target}) failed", file=sys.stderr)
         return False
     r = flick.type_symbol_page(text, gap_ms=gap_ms)
     if verbose: print(f"  [{page}] {text!r} ok={r.get('ok')}")
     return r.get("ok", False)
 
 def run_hira(chunk, cfg, verbose=True, gap_ms=DEFAULT_GAP_MS):
-    if not flick.switch_to_hira():
-        if verbose: print("  [!!] switch hira failed", file=sys.stderr)
+    if not flick.ensure_mode("hira"):
+        if verbose: print("  [!!] ensure_mode(hira) failed", file=sys.stderr)
         return 0, 0
     ok, total = 0, 0
     for s, h in tokenize_ja(chunk):
@@ -190,7 +187,7 @@ def type_arbitrary(text, cfg, verbose=True, gap_ms=DEFAULT_GAP_MS):
             total += 1
             if run_symbol(chunk, "A2", verbose, gap_ms=gap_ms): ok += 1
     # 終了時は hira に戻す
-    flick.switch_to_hira()
+    flick.ensure_mode("hira")
     return ok, total
 
 def main():

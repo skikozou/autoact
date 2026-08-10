@@ -8,58 +8,12 @@ Row 3 asdfghjkl 9キーは行4より上に等間隔と仮定.
 各キー中心 tap → editor に入った文字読取 → 対応表を出力.
 """
 import json
-import socket
 import sys
 import time
 
-HOST, PORT = "127.0.0.1", 8765
-IME_PKG = "com.google.android.inputmethod.latin"
-EDITOR_PKG = "ru.androidtools.texteditor"
-EDITOR_ID = f"{EDITOR_PKG}:id/big_text_view"
-DEL_KEY = f"{IME_PKG}:id/key_pos_del"
+from probe_common import IME_PKG, send, tap, read_editor, clear_editor, launch_editor
+
 SWITCH_ALPHA = f"{IME_PKG}:id/key_pos_switch_hiragana_alphabet"
-
-def send(cmd, args=None):
-    req = json.dumps({"cmd": cmd, "args": args or {}}, ensure_ascii=False) + "\n"
-    s = socket.socket()
-    s.settimeout(60)
-    s.connect((HOST, PORT))
-    s.sendall(req.encode("utf-8"))
-    buf = b""
-    while not buf.endswith(b"\n"):
-        c = s.recv(65536)
-        if not c: break
-        buf += c
-    s.close()
-    return json.loads(buf.decode("utf-8"))
-
-def launch_editor():
-    send("launch", {"package": EDITOR_PKG})
-    time.sleep(1.5)
-    if not send("find", {"by": "id", "value": EDITOR_ID, "limit": 1}).get("result",{}).get("matches"):
-        return False
-    send("click", {"by": "id", "value": EDITOR_ID})
-    time.sleep(0.8)
-    return True
-
-def read_editor():
-    r = send("find", {"by": "id", "value": EDITOR_ID, "limit": 1})
-    m = r.get("result", {}).get("matches", [])
-    return (m[0].get("text") or "") if m else ""
-
-def clear_editor():
-    for _ in range(3):
-        t = read_editor()
-        if not t: return
-        for _ in range(len(t) + 3):
-            send("click", {"by": "id", "value": DEL_KEY})
-        time.sleep(0.1)
-
-def tap(x, y):
-    return send("swipe", {"x1": x, "y1": y, "x2": x, "y2": y + 1, "durMs": 30})
-
-def swipe(x, y, dx, dy, ms=60):
-    return send("swipe", {"x1": x, "y1": y, "x2": x + dx, "y2": y + dy, "durMs": ms})
 
 # 推定 layout (Y は等間隔 148px):
 # Row4 y=2040 (shift 85, del 994, zxcvbnm 中央 7キー)
@@ -73,6 +27,7 @@ ROWS = {
     "row3": {"y": 1892, "keys": "asdfghjkl"},                     # 9キー 中央寄せ
     "row4": {"y": 2040, "keys": "zxcvbnm"},                       # 7キー 中央 (shift/del の間)
 }
+
 
 def x_for_row(row_name, i):
     keys = ROWS[row_name]["keys"]
@@ -88,16 +43,18 @@ def x_for_row(row_name, i):
         return 216 + i * 108
     raise ValueError(n)
 
+
 def probe_key(cx, cy, name):
     clear_editor()
     tap(cx, cy)
     time.sleep(0.15)
-    t = read_editor()
-    return t
+    return read_editor()
+
 
 def switch_to_alpha():
     send("click", {"by": "id", "value": SWITCH_ALPHA})
     time.sleep(0.5)
+
 
 def main():
     if not launch_editor():
@@ -117,15 +74,14 @@ def main():
             print(f"  {row} {k!r:3} ({x:4},{y}) -> {got!r:6}  {match}")
             layout[k] = [x, y]
 
-    # save
     with open("alpha_qwerty.json", "w") as f:
         json.dump({"keys": layout, "shift": [85, 2040], "del": [994, 2040]}, f, ensure_ascii=False, indent=2)
     print("\n== saved alpha_qwerty.json ==")
 
-    # cleanup
     clear_editor()
     switch_to_alpha()  # back to hira
     time.sleep(0.4)
+
 
 if __name__ == "__main__":
     main()

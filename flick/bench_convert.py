@@ -235,10 +235,9 @@ def main():
 
     cfg = flick.load_keymap()
 
-    if not flick.in_hira_mode():
-        if not flick.switch_to_hira():
-            print("[fatal] hira mode に入れない", file=sys.stderr)
-            return 1
+    if not flick.ensure_mode("hira"):
+        print("[fatal] hira mode に入れない", file=sys.stderr)
+        return 1
 
     print(f"== pre-clear {args.pre_clear} × del ==", file=sys.stderr)
     clear_editor(args.pre_clear)

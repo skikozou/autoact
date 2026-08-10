@@ -17,20 +17,9 @@
 "今日は雨" が入力される
 ```
 
-## 1. 形態素解析: なぜ janome か
+## 1. 形態素解析 (janome)
 
-### 最初は pykakasi を試した (失敗)
-
-pykakasi は kana-to-kanji ではなく **kanji→kana 変換器**。組合せ最適化ではなく文字単位に近い動作:
-
-- `今日は` → `こんにちは` と誤変換される (慣用句読みを引きずる)
-- `今日は雨` → 分割位置がおかしくて `こんにちは あめ` になる
-
-現代日本語の実用文字列で頻繁に壊れるため断念。
-
-### janome に切替 (安定)
-
-janome は MeCab 互換の形態素解析器を Python 純粋実装。IPADIC 内蔵:
+janome は MeCab 互換の形態素解析器 (Python 純粋実装、IPADIC 内蔵):
 
 ```python
 from janome.tokenizer import Tokenizer
@@ -43,9 +32,10 @@ for tok in t.tokenize("今日は雨"):
 ```
 
 - 100% Python なので Termux でも `pip install janome` だけで動く (辞書同梱)
-- 起動時に辞書ロードで 1-2 秒かかるが、以降は高速
-- **`Tokenizer` は `type_text._tokenizer()` で module singleton 化**。以前は `tokenize_ja` 呼び出しごとに new していて hira run 毎に 1-2s の辞書ロードが走っていた。今は最初の 1 回だけ
+- 辞書ロードは初回 1-2 秒、以降は高速 (`type_text._tokenizer()` で module singleton)
 - 読みは全て **カタカナ** で返る (`reading` 属性)
+
+pykakasi は慣用句読みを引きずり `今日は` → `こんにちは` と誤変換するため不採用 (経緯は [experiments.md Ph.2](experiments.md))。
 
 ### カタカナ → ひらがな
 
@@ -108,12 +98,7 @@ def find_candidate_by_prefix(target):
 
 ### 出現待ちは polling (`_poll_candidate`)
 
-以前は入力直後に `time.sleep(0.25)` で候補バー描画を待ってから 1 回だけ `find_candidate_by_prefix` を呼んでいた。
-現在は `type_text._poll_candidate(orig, timeout=0.5, interval=0.03)` が `find_candidate_by_prefix` を 30ms 間隔で叩き続け、ヒット即返す。上限 500ms。
-
-- 候補が早く出た token では最短で捕まえ、旧 250ms 固定より最大 200ms 節約
-- 遅い token でも上限が伸びたので取りこぼしが減る
-- a11y `find` 1 発は ~15-30ms なので poll ループ自体のコストは小さい
+`type_text._poll_candidate(orig, timeout=0.5, interval=0.03)` が `find_candidate_by_prefix` を 30ms 間隔で叩き、ヒット即返す (上限 500ms)。a11y `find` 1 発は ~15-30ms なので poll ループ自体のコストは小さい。
 
 ### click (`click_candidate`)
 
@@ -146,29 +131,6 @@ desc をキーに click し直す (直接ノード click 経路が autoact に�
 
 `type_hira_segment(orig, hira, ...)` は入力後に `commit_hiragana()` (=`click key_pos_ime_action`) を呼ぶ設計だが、`orig` が中立文字 (`\n`/半角スペース/`\u3000`) のみのときは `build_type_steps` 内で既に KEY_ENTER / KEY_SPACE を click しており未確定状態が無い。ここで追加で `commit_hiragana()` を呼ぶと **もう一発 Enter が click されて余分な改行が挿入**される。よって中立文字トークンは commit をスキップする。
 
-## 6. なぜ「読みで打って候補選択」なのか
+## 6. 前提: 「読みで打って候補選択」経路
 
-代替を検討したが不採用:
-
-| 案 | 却下理由 |
-|---|---|
-| `setText` で漢字直接 | IME 経由でない、フリック観察不可 |
-| Gboard の候補学習を利用 (同じ変換を繰り返す) | 学習は破壊的な副作用、テストで安定しない |
-| 手書き入力モード | 精度・遅延 |
-| 音声入力 | 環境依存 (マイク・ノイズ)、遅延 |
-
-読み→候補選択は Gboard を「見える形で正しく動かす」唯一の実用パス。
-
-## 7. janome 対 pykakasi 早見表
-
-| | pykakasi | janome |
-|---|---|---|
-| 実装 | 文字テーブル + 辞書 | 形態素解析器 (Viterbi) |
-| 「今日」 | `こんにち` | `キョウ` (→ ひら `きょう`) ✓ |
-| 「今日は」 | `こんにちは` ❌ | `キョウ ハ` ✓ |
-| インストール | `pip install pykakasi` | `pip install janome` |
-| 依存 | なし | なし (純 Python) |
-| 起動 | 即時 | 1-2 秒 (辞書ロード) |
-| 速度 | 速い | 実用速度 |
-
-現代日本語には janome 一択。
+Gboard を実際に叩いて入力を発火する設計上、`setText` (IME 非経由) 直接漢字投入は取れない。読み → hira 入力 → 候補選択が Gboard を経由する唯一の実用パス。他案の比較検討は [experiments.md](experiments.md) 参照。

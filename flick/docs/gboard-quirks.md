@@ -27,13 +27,7 @@ if prev_key == current_key:
 
 ## 2. symbol variant は last-used が開く
 
-`key_pos_switch_to_symbol` は「symbol モードに入る」だけで、A1/A2/B のどれになるかは **前回開いていた variant**:
-
-- 前回 A1 → A1
-- 前回 A2 → A2
-- 前回 B  → B
-
-**対処**: 開いた直後に `symbol_state()` で確認 → 期待バリアントに手動遷移 (`ensure_symbol_A1/A2`)。
+`key_pos_switch_to_symbol` は前回開いていた variant (A1/A2/B) を再表示するため、開いた直後にどれになるか予測できない。正規化は `ensure_symbol_A1/A2` で行う → 詳細は [mode-switching.md §symbol variant の癖](mode-switching.md#symbol-variant-の癖-last-used-が開く)。
 
 ## 3. a11y に露出しないキーがある (canvas 描画)
 
@@ -132,20 +126,11 @@ send("exec", {"scenario":{"steps":[{"op":"launchApp",...}]}})  # ← 空振り
 
 foreground アプリの確認は `send("top", {})` の result.package。
 
-## 11. 濁点キーは直前文字を変換 — フリック 3 方向で 1 発
+## 11. 濁点キーはフリック 3 方向で 1 発変換
 
-`dak_xy` は N 回タップの循環キーだが、**フリックすると 1 発で目的の変換が確定**する:
+`dak_xy` はタップだと循環選択キーだが、フリックすると 1 発で確定する。方向割当は [keymap.md §濁点キー](keymap.md#濁点キー-dak--フリック-3-方向で-1-発変換)。
 
-| フリック | 効果 | 例 |
-|---|---|---|
-| ← (L) | 濁点付与 | は→ば, か→が, う→ゔ, つ→づ |
-| → (R) | 半濁点付与 | は→ぱ |
-| ↑ (U) | 小文字化 | あ→ぁ, や→ゃ, つ→っ, う→ぅ, わ→ゎ |
-| ↓ (D) | (未使用) | — |
-
-本パッケージは全てフリック方式で発火する (`CHAR_MAP` の `dak_dir` に `L/R/U` を格納)。旧実装の「N 回タップで循環」は multi-tap 誤爆リスクがあり撤去済。
-
-一部文字 (な行/ま行/ら行) は dak 対応が無い (フリックしても不変)。
+本パッケージは `CHAR_MAP` の `dak_dir` に L/R/U を格納して全てフリック方式で発火。な行/ま行/ら行は dak 対応が無い (フリックしても不変)。
 
 ## 12. `key_pos_ja_12keys_*` は hira mode 判定に使える
 

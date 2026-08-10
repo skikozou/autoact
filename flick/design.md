@@ -102,16 +102,14 @@ python3 flick.py --convert "きょうはあめ" "今日は雨"   # → 今日は
 - 33文字 — 3.89s, 8.5 cps
 - 律速: swipe durMs=60ms が支配的 (各stepの overhead)
 
-## 今後
+## 未実装 / 課題
 
-- **英数モード**: `key_pos_switch_hiragana_alphabet` (「あa」キー) で切替
-- **記号キーボード**: `key_pos_switch_to_symbol` で切替
-- **カタカナ**: 候補バーに常に存在するので `--convert "あめ" アメ` でOK
 - **候補が4件超**: 「その他の候補」展開 → 追加スクロール/検索
+- **カタカナ直接入力モード**: 現状は変換候補経由のみ
+- **alpha → hira 直接切替**: Gboard 設定次第で `key_pos_switch_hiragana_alphabet` が alpha に露出しないケース → long-press space / globe 経由の回避策未確定
 - **高速化余地**:
   - swipe durMs をさらに詰める (Gboardの取りこぼし限界を測定)
   - dispatchGesture の `willContinue` チェインで複数フリックを1発
-  - 濁点キーを a11y click に変更 (tap誤爆防止)
 
 ## ファイル
 

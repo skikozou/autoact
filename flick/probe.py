@@ -8,12 +8,9 @@
   - 画面 1080x2392 (縦)
 """
 import json
-import socket
 import time
-import sys
 
-HOST = "127.0.0.1"
-PORT = 8765
+from probe_common import tap, swipe, read_editor, clear_editor
 
 # 中央12キー中心座標 (probe.md参照)
 KEYS = {
@@ -30,47 +27,9 @@ KEYS = {
     "wa":  (540, 2177),  # わ
     "ten": (754, 2177),  # 、
 }
-DEL = (968, 1645)
 FLICK_PX = 100
 FLICK_MS = 60
 
-def send(cmd, args=None):
-    req = json.dumps({"cmd": cmd, "args": args or {}}, ensure_ascii=False) + "\n"
-    s = socket.socket()
-    s.connect((HOST, PORT))
-    s.sendall(req.encode("utf-8"))
-    buf = b""
-    while not buf.endswith(b"\n"):
-        chunk = s.recv(4096)
-        if not chunk:
-            break
-        buf += chunk
-    s.close()
-    return json.loads(buf.decode("utf-8"))
-
-def tap(x, y):
-    return send("tap", {"x": x, "y": y})
-
-def swipe(x1, y1, x2, y2, ms=FLICK_MS):
-    return send("swipe", {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "durMs": ms})
-
-def read_text():
-    r = send("find", {"by": "id", "value": "ru.androidtools.texteditor:id/big_text_view", "limit": 1})
-    matches = r.get("result", {}).get("matches", [])
-    if not matches:
-        return ""
-    return matches[0].get("text") or ""
-
-def clear_all():
-    """全削除. 現テキスト長ぶん削除キー連打."""
-    for _ in range(3):
-        t = read_text()
-        if not t:
-            return
-        for _ in range(len(t) + 2):
-            tap(*DEL)
-            time.sleep(0.05)
-        time.sleep(0.2)
 
 def flick(key_xy, direction):
     cx, cy = key_xy
@@ -81,17 +40,19 @@ def flick(key_xy, direction):
               "R": (FLICK_PX, 0), "D": (0, FLICK_PX)}[direction]
     swipe(cx, cy, cx + dx, cy + dy, FLICK_MS)
 
+
 def probe_one(name, key_xy, direction, settle=0.35):
-    before = read_text()
+    before = read_editor()
     flick(key_xy, direction)
     time.sleep(settle)
-    after = read_text()
+    after = read_editor()
     produced = after[len(before):] if after.startswith(before) else f"?before={before!r} after={after!r}"
     return produced
 
+
 def main():
     print("== Probe start ==")
-    clear_all()
+    clear_editor()
     result = {}
     for name, xy in KEYS.items():
         result[name] = {}
@@ -99,9 +60,10 @@ def main():
             produced = probe_one(name, xy, d)
             result[name][d] = produced
             print(f"  {name} {d} -> {produced!r}")
-            clear_all()
+            clear_editor()
     print("\n== JSON ==")
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
 
 if __name__ == "__main__":
     main()

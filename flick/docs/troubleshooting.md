@@ -15,8 +15,8 @@
 ### 記号が全部抜ける (`Hello / world` → `Hello /`)
 
 symbol → alpha 復帰失敗。次のセグメントが変な場所を叩いてる。
-- `switch_to_alpha()` が `in_symbol_mode()` を先にチェックしているか確認
-- 手動で `flick.switch_to_alpha()` を呼んで戻り値 True か
+- 手動で `flick.ensure_mode("alpha")` を呼んで戻り値 True か
+- False なら `flick._current_mode()` の返り値を見て何処で詰まっているか確認
 
 ### 漢字が違うのに変換される
 
@@ -34,27 +34,23 @@ send("top", {}).get("result",{}).get("package")
 
 ## モード切替が失敗
 
-### `switch_to_hira()` が False
+### `ensure_mode(...)` が False
 
 現在のモードを確認:
 ```python
-print(flick.in_hira_mode(), flick.in_alpha_mode(), flick.in_symbol_mode())
+print(flick._current_mode())
+# → "hira" / "alpha" / "sym_A1" / "sym_A2" / "sym_B" / "unknown"
 ```
 
-- 3 つとも False → キーボード自体が出ていない (editor unfocus or 別 app)
-- alpha=True で `key_pos_switch_hiragana_alphabet` が露出していない: Gboard 設定で「あA」キーが物理的に消えているケース (space バーが「QWERTY」ラベル、globe が表示)
+- `"unknown"` → キーボード自体が出ていない (editor unfocus or 別 app)
+- `"alpha"` から `"hira"` に行けない → `key_pos_switch_hiragana_alphabet` が alpha に露出していないケース (Gboard 設定で「あA」キーが物理的に消えている、space バーが「QWERTY」ラベル、globe が表示)
   - 一時対処: long-press space か globe icon 経由の IME picker (未自動化)
   - 恒久対処: Gboard 設定 → 言語 → 日本語 → 「英字」レイアウトの有効化
 
-### `switch_to_alpha()` が False
-
-- symbol からなら `back_to_prime` 経由が必要 (Ph.3 の修正)
-- 現状の `switch_to_alpha` は symbol チェックを含む
-
-### `ensure_symbol_A2()` が False
+### `ensure_mode("sym_A2")` が False
 
 - last-used が B なら B→A 遷移で canvas (325,2170) tap が要る
-- そこが失敗している可能性: `symbol_state()` を追って原因特定
+- `flick._current_mode()` を数回叩いて遷移が進んでいるか追跡
 
 ## autoact 通信エラー
 

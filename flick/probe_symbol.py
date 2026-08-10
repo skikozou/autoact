@@ -127,9 +127,7 @@ def probe_layout(layout, name):
 
 def main():
     # ensure hira mode
-    if not flick.in_hira_mode():
-        flick.switch_to_hira()
-    if not flick.in_hira_mode():
+    if not flick.ensure_mode("hira"):
         print("[fatal] cannot get to hira"); sys.exit(1)
     print("=== enter symbol ===")
     enter_symbol_from_hira()
@@ -158,7 +156,7 @@ def main():
     clr()
     flick.send("click", {"by": "id", "value": BACK_ID})
     time.sleep(0.5)
-    flick.switch_to_hira()
+    flick.ensure_mode("hira")
 
 if __name__ == "__main__":
     main()

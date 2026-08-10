@@ -37,7 +37,7 @@ def classify_char(ch, cur_mode=None):
 
 **優先度がキモ**: alpha を最優先にすると `@ # $ ¥` などが flick-up で打てて symbol モード切替を回避できる。
 
-**中立文字 (`\n`, 半角/全角スペース) は現行モードに吸収する**。`key_pos_ime_action` (Enter) と `key_pos_space` は全モードで a11y click できるので、hira 文の途中の改行/スペースで alpha に切り替える必要がない (以前は毎回 `switch_to_alpha` が走って ~400ms×N の無駄が出ていた)。中立文字だけで始まるテキストは hira を既定にする。
+**中立文字 (`\n`, 半角/全角スペース) は現行モードに吸収する**。`key_pos_ime_action` (Enter) と `key_pos_space` は全モードで a11y click できるので、hira 文の途中の改行/スペースで alpha に切り替える必要がない (毎回のモード切替 ~400ms を節約)。中立文字だけで始まるテキストは hira を既定にする。
 
 ### 実測: どの記号がどの経路で速いか
 
@@ -67,7 +67,7 @@ def classify_char(ch, cur_mode=None):
 ]
 ```
 
-5 セグメント (以前は 6)。改行を含む複数行日本語 `"一行目\n二行目"` は `[("hira","一行目\n二行目")]` の 1 セグメントで済み、`\n` のたびに alpha へ切り替わる旧挙動を回避する。
+5 セグメント。改行を含む複数行日本語 `"一行目\n二行目"` も `[("hira","一行目\n二行目")]` の 1 セグメントで済む。
 
 各 mode 遷移が 400ms 弱かかるので、セグメント数最小化が速度に直結。
 
@@ -90,15 +90,15 @@ tokenize_ja("価格と") → [
    - else → **poll**: 候補バーに `orig` で始まる候補が出るまで `find_candidate_by_prefix` を `CANDIDATE_POLL_INTERVAL=30ms` 間隔で最大 `CANDIDATE_POLL_TIMEOUT=500ms` 呼び続ける。出たら click
 3. 候補が無ければ `commit_hiragana()` でひらがなのまま確定 (フォールバック)
 
-### なぜ polling か
+### polling の設計
 
-以前は `time.sleep(0.25)` 固定 → 全 token で 250ms 無駄待ち。実際の候補バー出現は速いときは 50-100ms、遅いときで 300ms 超と幅がある。
-poll (30ms 間隔) にすると:
-- 早く出た token では ~50ms で捕まえ、250ms 固定より最大 200ms 節約
-- 出るのが遅い token でも上限 500ms まで自動延長 (取りこぼし率も下がる)
+候補バー出現は 50ms〜300ms 超と揺れる。`_poll_candidate` は 30ms 間隔で `find_candidate_by_prefix` を叩き上限 500ms:
+
+- 早く出た token では ~50ms で捕まえる
+- 遅い token でも上限 500ms まで自動延長 (取りこぼし率が低い)
 - a11y `find` 1 発は ~15-30ms なので poll ループ自体のコストは小さい
 
-pure hira トークン (`orig == yomi`) は候補選択しないので sleep も poll も不要 → 即 commit で 250ms まるごと節約。
+pure hira トークン (`orig == yomi`) は候補選択しないので poll も不要 → 即 commit。
 
 ## 4. hira 12キー step 生成 (build_type_steps)
 
@@ -122,19 +122,17 @@ for ch in text:
 
 `emit(cx, cy, dir)` は `"C"` なら 1px swipe (擬似 tap)、`"L"/"U"/"R"/"D"` なら 100px flick swipe を steps に append する共通ヘルパ。
 
-### 濁点は dak キーのフリック 1 発 (旧: multi-tap 廃止)
+### 濁点は dak キーのフリック 1 発
 
-`が` = `(ka,C,"L")` → `か` タップ → dak を **←フリック**。
-`ぱ` = `(ha,C,"R")` → `は` タップ → dak を **→フリック**。
-`ゃ` = `(ya,C,"U")` → `や` タップ → dak を **↑フリック**。
-`ゔ` = `(a,"U","L")` → `う` (a↑) → dak ← フリック。
-`づ` = `(ta,"U","L")` → `つ` (ta↑) → dak ← フリック。
+base タップ後、`dak_dir` が `None` でなければ dak キーを `dak_dir` 方向にフリック:
 
-旧実装は `dak_count` (int) で「濁点キーを N 回タップして候補循環」させる方式だったが、
-1. `dak_count ≥ 2` の文字 (`ぱ/ゔ/づ` 等) で `right_arrow` ガードが誤って dak 連打を分断 → 半濁音/2 段変換が失敗し得る
-2. Gboard の multi-tap タイムアウト待ちも入る (`dak_gap_ms` の必要性)
+- `が` = `(ka,C,"L")` → `か` タップ → dak ← フリック
+- `ぱ` = `(ha,C,"R")` → `は` タップ → dak → フリック
+- `ゃ` = `(ya,C,"U")` → `や` タップ → dak ↑ フリック
+- `ゔ` = `(a,"U","L")` → `う` (a↑) → dak ← フリック
+- `づ` = `(ta,"U","L")` → `つ` (ta↑) → dak ← フリック
 
-の 2 点で不安定だった。フリック方式なら 1 op で確定するのでこれらが全部消える。
+方向とキー割当は [keymap.md §濁点キー](keymap.md#濁点キー-dak--フリック-3-方向で-1-発変換)。
 
 ### 1px swipe を tap の代わりに使う
 
@@ -153,29 +151,9 @@ autoact の `tap` op は dispatchGesture の point-stroke で 330ms かかる (A
 
 sleep step は autoact 側の `ScenarioRunner` が待つので、Python ↔ autoact の TCP 追加往復は発生しない。
 
-**旧 `dak_gap_ms` は撤廃**: multi-tap をやめたので濁点連打の間隔調整は不要。
+## 5. 同一キー連続の multi-tap 回避
 
-## 5. 同一キー連続の multi-tap 回避 (bug#2)
-
-### 現象
-
-`かかく` を素直に打つと `きく` になる。
-
-### 原因
-
-Gboard 12キーの multi-tap 判定は「同じキーを短時間内に再度叩くと候補を進める」。
-`tap か → tap か` を続けると、2回目が multi-tap 判定されて `か → き` に進んでしまう。
-その後の `flick↑ か` は独立して `く` に。結果 `きく` (2文字)。
-
-**auto-commit タイムアウトは >1000ms** (実測: 600ms sleep でも駄目、1200ms で OK)。
-
-### 修正: `key_pos_right_arrow` を挟む
-
-hira モード限定で `key_pos_right_arrow` (右カーソル) が使える:
-- 未確定文字を **即確定** して
-- カーソルを 1 つ右に動かす
-
-これを同キー連続の間に挟むと、multi-tap の連鎖が切れる:
+hira 12キーの multi-tap 判定を避けるため、`prev_key == current_key` のとき `key_pos_right_arrow` (未確定確定 + カーソル右) を 1 つ挟む:
 
 ```
 tap か
@@ -185,13 +163,7 @@ click right_arrow    ← 「か」確定、カーソル右
 flick↑ か → く
 ```
 
-sleep 1200ms より圧倒的に速い (a11y click は ~50ms)。
-
-### ケア
-
-- 修正後の `かかく` は 1.20s で完了 (right_arrow 2 回挟む)
-- 未確定文字が無くても right_arrow はカーソル右移動だけで無害
-- 副作用: セグメント全体が同キー連続だと右端に飛ぶが、続く入力は問題なし
+a11y click は ~50ms、`かかく` 全体で 1.20s。原因と実測タイムアウト詳細は [gboard-quirks.md §1](gboard-quirks.md#1-multi-tap-誤爆-最悪の罠)。
 
 ## 6. 一括発火 (autoact exec)
 
@@ -213,10 +185,8 @@ step 列は `send("exec", {"scenario":{"name":..., "steps":[...]}})` で 1 リ�
 
 律速はモード切替 (各 400ms) と符号変換 (find_candidate_by_prefix)。
 
-### 高速化差分 (現行)
+### 高速化に効いている設計
 
-- **janome Tokenizer singleton 化** (`_tokenizer()`): 以前は `run_hira` 呼び出し毎に `Tokenizer()` を new して辞書ロード (1-2s)。今は module singleton で初回だけ。→ 2 回目以降の hira run で **1-2s 短縮**
-- **pure hira トークンの sleep 廃止**: `orig == yomi` のとき以前は `time.sleep(0.25)` → 即 `commit_hiragana()`。→ 純ひらがな token 1 個あたり **250ms 短縮**
-- **漢字変換の poll 化**: 以前は `time.sleep(0.25)` 固定後に 1 回 find。今は `_poll_candidate` (30ms 間隔, 500ms 上限)。→ 候補が早く出た token で **最大 200ms 短縮**、遅い token の取りこぼしも減る
-
-上の実測表は旧実装の値なので、次回計測時に再取得すること。
+- **janome Tokenizer singleton** (`_tokenizer()`): module singleton で辞書ロード (1-2s) は初回だけ
+- **pure hira トークンの即 commit**: `orig == yomi` のときは候補選択せず `commit_hiragana()` 直行 (sleep 不要)
+- **漢字変換の poll**: `_poll_candidate` (30ms 間隔, 500ms 上限) で候補バー出現を検知即 click

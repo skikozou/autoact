@@ -7,41 +7,14 @@
 前提: ru.androidtools.texteditor が起動済みで EditText focus 済み.
 """
 import json
-import socket
 import sys
 import time
 
-HOST, PORT = "127.0.0.1", 8765
-IME_PKG = "com.google.android.inputmethod.latin"
-EDITOR_PKG = "ru.androidtools.texteditor"
-EDITOR_ID = f"{EDITOR_PKG}:id/big_text_view"
+from probe_common import IME_PKG, send, launch_editor
+
 SWITCH_ALPHA = f"{IME_PKG}:id/key_pos_switch_hiragana_alphabet"
 SWITCH_SYMBOL = f"{IME_PKG}:id/key_pos_switch_to_symbol"
 
-def send(cmd, args=None):
-    req = json.dumps({"cmd": cmd, "args": args or {}}, ensure_ascii=False) + "\n"
-    s = socket.socket()
-    s.settimeout(60)
-    s.connect((HOST, PORT))
-    s.sendall(req.encode("utf-8"))
-    buf = b""
-    while not buf.endswith(b"\n"):
-        c = s.recv(65536)
-        if not c: break
-        buf += c
-    s.close()
-    return json.loads(buf.decode("utf-8"))
-
-def launch_editor():
-    send("launch", {"package": EDITOR_PKG})
-    time.sleep(1.5)
-    r = send("find", {"by": "id", "value": EDITOR_ID, "limit": 1})
-    if not r.get("result", {}).get("matches", []):
-        print("[warn] editor not found after launch", file=sys.stderr)
-        return False
-    send("click", {"by": "id", "value": EDITOR_ID})
-    time.sleep(0.8)
-    return True
 
 def dump_keys():
     """key_pos_* のキー全部拾う."""
@@ -63,10 +36,12 @@ def dump_keys():
     out.sort(key=lambda k: (k["xy"][1], k["xy"][0]))
     return out
 
+
 def print_keys(keys, mode):
     print(f"\n== [{mode}] {len(keys)} keys ==")
     for k in keys:
         print(f"  {k['id']:44} xy={tuple(k['xy'])} desc={k['desc']!r}")
+
 
 def main():
     print("== launch editor ==")
@@ -101,21 +76,19 @@ def main():
 
     # 4. return
     print("\n== return to hiragana ==")
-    # symbol -> alpha via same key (usually 'ABC')?
-    # try click switch_hiragana_alphabet from symbol
     send("click", {"by": "id", "value": SWITCH_ALPHA})
     time.sleep(0.5)
     keys_back = dump_keys()
     got_hira = any(k["id"] == "key_pos_ja_12keys_1" for k in keys_back)
     print(f"  back to hira? {got_hira}")
     if not got_hira:
-        # 1 more click
         send("click", {"by": "id", "value": SWITCH_ALPHA})
         time.sleep(0.5)
 
     with open("modes_dump.json", "w") as f:
         json.dump(all_modes, f, ensure_ascii=False, indent=2)
     print("\n== saved modes_dump.json ==")
+
 
 if __name__ == "__main__":
     main()
